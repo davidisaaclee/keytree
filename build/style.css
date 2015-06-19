@@ -1,0 +1,27 @@
+body {
+  background-color: #ccc; }
+
+#container {
+  width: 100%;
+  margin: 0 auto;
+  text-align: center; }
+
+kt-symbol {
+  display: inline-block;
+  background-color: #eee;
+  border-radius: 4px;
+  border: 1px solid #bbb;
+  font-family: "Helvetica", "sans-serif"; }
+  kt-symbol .pieces {
+    display: flex;
+    padding: 10px; }
+  kt-symbol span {
+    display: inline;
+    margin: 0;
+    white-space: pre; }
+  kt-symbol .hole {
+    color: #888;
+    font-style: italic; }
+  kt-symbol .hole:hover {
+    cursor: pointer;
+    color: #444; }

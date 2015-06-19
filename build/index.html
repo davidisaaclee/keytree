@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="keyTree">
+  <head>
+    <title>keytree</title>
+    <script src="../node_modules/angular/angular.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div id="container" ng-controller="KeyTreeController as kt">
+      <kt-symbol model="kt.filteredData"></kt-symbol>
+      <kt-flower model="kt.flowerData"></kt-flower>
+    </div>
+    <script src="scripts/app.js"></script>
+  </body>
+</html>

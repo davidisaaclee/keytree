@@ -1,0 +1,6 @@
+
+<div class="pieces">
+  <div ng-repeat="piece in model" ng-switch="piece.type"><span ng-switch-when="Literal" class="literal">{{piece.model.text}}</span><span ng-switch-when="Hole" ng-click="piece.onClick()" class="hole">{{piece.model.group}}</span>
+    <kt-symbol ng-switch-when="Fill" model="piece.model" class="fill"></kt-symbol>
+  </div>
+</div>

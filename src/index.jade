@@ -1,0 +1,13 @@
+doctype html
+html(lang="en", ng-app="keyTree")
+  head
+    title keytree
+    script(src="../node_modules/angular/angular.min.js")
+    link(rel='stylesheet', href='style.css')
+  body
+    div(id="container", ng-controller="KeyTreeController as kt")
+      kt-symbol(model="kt.filteredData")
+
+      kt-flower(model="kt.flowerData")
+
+    script(src='scripts/app.js')

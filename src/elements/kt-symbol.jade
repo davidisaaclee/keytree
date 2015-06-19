@@ -1,0 +1,9 @@
+.pieces
+  div(ng-repeat="piece in model", ng-switch="piece.type")
+    span(class="literal", ng-switch-when="Literal") {{piece.model.text}}
+    span(class="hole",
+         ng-switch-when="Hole",
+         ng-click="piece.onClick()") {{piece.model.group}}
+    kt-symbol(class="fill",
+              ng-switch-when="Fill",
+              model="piece.model")
