@@ -1,0 +1,11 @@
+
+<link rel="import" href="../../../bower_components/polymer/polymer.html"/>
+<dom-module id="seed-element">
+  <link rel="stylesheet" href="kt-flower.css"/>
+  <template>
+    <template is="dom-repeat" items="{{petals}}" indexAs="idx">
+      <p>{{idx + ': ' + item}}</p>
+    </template>
+  </template>
+</dom-module>
+<script href="kt-flower.js"></script>

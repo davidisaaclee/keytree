@@ -1,13 +1,24 @@
 doctype html
-html(lang="en", ng-app="keyTree")
+html(lang="en")
   head
     title keytree
-    script(src="../node_modules/angular/angular.min.js")
+    meta(charset='UTF-8')
+    meta(name="viewport",
+         content="width=device-height, \
+                  initial-scale=1, \
+                  user-scalable=no")
+    script(src='../bower_components/webcomponentsjs/webcomponents-lite.js')
+    link(rel='import', href='../bower_components/polymer/polymer.html')
+    link(rel='import', href='../bower_components/text-tree/build/text-root.html')
+    link(rel='import', href='../bower_components/flower-picker/build/flower-picker.html')
+
     link(rel='stylesheet', href='style.css')
-  body
-    div(id="container", ng-controller="KeyTreeController as kt")
-      kt-symbol(model="kt.filteredData")
-
-      kt-flower(model="kt.flowerData")
-
+  body(unresolved)
+    #container
+      #overlay
+        flower-picker#picker(radius="100",
+                             on-selected="handleSelected",
+                             stay-within="container")
+      #app
+        text-root#tree
     script(src='scripts/app.js')

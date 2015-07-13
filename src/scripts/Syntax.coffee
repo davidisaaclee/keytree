@@ -6,7 +6,7 @@ match = require 'util/match'
 class Grammar
   constructor: (@productions) ->
 
-  # productions :: { <identifier> :: Production }
+  # productions :: { [<identifier> : { [<identifier> : Sequence] }] }
   productions: undefined
 
   # makeSequence :: String -> String -> Sequence
@@ -34,9 +34,24 @@ class Sequence
   # symbols :: [Symbol]
   symbols: undefined
 
+  display: () ->
+    @symbols
+      .map (sym) -> do sym.display
+      .join ''
+
+  templateString: () ->
+    @symbols
+      .map (sym) ->
+        match sym,
+          Literal: ({text}) -> text
+          Hole: ({identifier, group}) -> "`#{identifier}`"
+          Regex: ({pattern}) -> pattern
+      .join ''
+
 
 # A single element of a `Sequence`.
 class Symbol
+  display: () -> 'display() not implemented.'
 
 
 # An unchanging string literal; a terminal.
@@ -45,6 +60,8 @@ class Literal extends Symbol
 
   # text :: String
   text: undefined
+
+  display: () -> @text
 
 
 # A hole to be filled; annotated with a valid group identifier for filling; a nonterminal.
@@ -59,6 +76,8 @@ class Hole extends Symbol
   # identifier :: String
   identifier: undefined
 
+  display: () -> "&lt;#{@identifier}&gt;"
+
 
 class Regex extends Symbol
   constructor: (@pattern) ->
@@ -66,13 +85,16 @@ class Regex extends Symbol
   # pattern :: String
   pattern: undefined
 
+  display: () -> "&lt;\\#{@pattern}&gt;"
+
 
 # ---- INSTANCE ---- #
 
 # Represents a syntax tree, containing all information necessary to render the text.
 class SyntaxTree
   constructor: (@grammar, startGroup) ->
-    @root = new Node (new Sequence [new Hole startGroup, 'start'])
+    @root = new Node (new Sequence [new Hole startGroup, 'start']), this
+    @_listeners = {}
 
   # root :: Node
   root: undefined
@@ -80,27 +102,63 @@ class SyntaxTree
   # grammar :: Grammar
   grammar: undefined
 
+  fillHole: (path, fillWith, useNumericPath) ->
+    @root
+      .navigateHole path, useNumericPath
+      .fill fillWith
+    @_notifyChanged()
+
+  navigateHole: (path, useNumericPath) ->
+    @root.navigateHole path, useNumericPath
+
+  # Register a callback to be executed on tree modification.
+  # Returns an unsubscribe function.
+  _numberOfCallbacks: 0
+  notifyChanged: (callback) ->
+    cbId = "#cb-#{@_numberOfCallbacks++}"
+    @_listeners[cbId] = callback
+    return () -> delete _listeners[cbId]
+
+  _notifyChanged: () => cb() for _, cb of @_listeners
+
 
 # Represents a node in a `SyntaxTree`, containing the ability to render itself and its children.
 class Node
-  constructor: (@sequence) ->
+  constructor: (@sequence, parent) ->
     @holes = {}
+    @_listeners = {}
+
+    if parent?._notifyChanged?
+      @notifyChanged parent._notifyChanged
+
+    holeIndex = 0
+    notify = @_notifyChanged
     @sequence.symbols.forEach (sym, index) =>
       if sym.constructor.name is 'Hole'
-        @holes[sym.identifier] = {group: sym.group, index: index, value: null}
+        @holes[sym.identifier] =
+          id: sym.identifier
+          group: sym.group
+          index: index
+          holeIndex: holeIndex++
+          value: null
+          fill: (withNode) ->
+            @value = withNode
+            withNode.notifyChanged notify
+            do notify
 
   # sequence :: Sequence
   sequence: undefined
 
-  # holes :: { <identifier>: { group :: String, index :: Integer, value :: Node } }
+  # holes :: {
+  #   <identifier>: {
+  #     id :: String,
+  #     group :: String,
+  #     index :: Integer,
+  #     holeIndex :: Integer,
+  #     value :: Node,
+  #     fill :: Node -> () } }
   holes: undefined
 
-  # fillHole :: String -> Node -> Node
-  fillHole: (holeId, fillWith) ->
-    hole = @holes[holeId]
-    if hole?
-      hole.value = fillWith
-    @
 
   # Renders this node into text, recurring on its children.
   # render :: Unit -> String
@@ -115,21 +173,102 @@ class Node
             else ('`' + group + '`')
       .join ""
 
-  # navigate :: Path -> Node
-  navigate: (path) -> # TODO
+
+  getNthChild: (index) ->
+    for key in Object.keys @holes
+      if @holes[key].holeIndex is index
+      then return @holes[key]
+    return null
+
+
+  getChild: (id) ->
+    return @holes[id]
+
+
+  idPathFromNumericPath: (numericPath) ->
+    [hd, tl...] = numericPath
+    nextHole = @getNthChild hd
+
+    # Check that such a hole exists.
+    if not nextHole?
+      return null
+
+    if tl.length is 0
+    then [nextHole.id]
+    else
+      if nextHole.value?
+      then [nextHole.id, (nextHole.value.idPathFromNumericPath tl)...]
+      else []
+
+
+  walk: (path, options = {}) ->
+    [hd, tl...] = path
+    nextHole = do =>
+      if options.useNumericPath
+      then @getNthChild hd
+      else @getChild hd
+
+    # Check that such a hole exists.
+    if not nextHole?
+      return null
+
+    # # Check that such a hole has a value.
+    # if not nextHole.value?
+    #   return 'empty' # ???
+
+    if options.fold?.proc?
+    then options.fold.acc = options.fold.proc options.fold.acc, nextHole
+
+    if tl.length is 0
+      if options.endFn?
+      then options.endFn nextHole.value, nextHole
+      else nextHole.value
+    else
+      if nextHole.value?
+      then nextHole.value.walk tl, options
+      else null
+
+
+  navigate: (path, useNumericPath) ->
+    @walk path, {useNumericPath: useNumericPath}
+
+  navigateHole: (path, useNumericPath) ->
+    @walk path,
+      endFn: (val, hole) -> hole
+      useNumericPath: useNumericPath
+
+  # Register a callback to be executed on tree modification.
+  # Returns an unsubscribe function.
+  _numberOfCallbacks: 0
+  notifyChanged: (callback) ->
+    cbId = "#cb-#{@_numberOfCallbacks++}"
+    @_listeners[cbId] = callback
+    return () -> delete _listeners[cbId]
+
+  _notifyChanged: () => cb() for _, cb of @_listeners
 
 
 # ---- Exports ---- #
 
-# terser constructors: turn `new Class(args...)` into `Class(args...)`
-generateConstructor = (klass) -> (args...) -> new klass args...
+# # terser constructors: turn `new Class(args...)` into `Class(args...)`
+# generateConstructor = (klass) -> (args...) -> new klass args...
+
+# module.exports =
+#   Grammar: Grammar
+#   Sequence: generateConstructor Sequence
+#   S:
+#     Literal: generateConstructor Literal
+#     Hole: generateConstructor Hole
+#     Regex: generateConstructor Regex
+#   SyntaxTree: SyntaxTree
+#   Node: Node
 
 module.exports =
   Grammar: Grammar
-  Sequence: generateConstructor Sequence
+  Sequence: Sequence
   S:
-    Literal: generateConstructor Literal
-    Hole: generateConstructor Hole
-    Regex: generateConstructor Regex
+    Literal: Literal
+    Hole: Hole
+    Regex: Regex
   SyntaxTree: SyntaxTree
   Node: Node

@@ -1,0 +1,29 @@
+body {
+  margin: 0;
+  padding: 0;
+
+  background-color: #333;
+}
+
+#container {
+  pointer-events: none;
+  margin: 0 auto;
+  // width: 100vw;
+  // height: 100vh;
+  background-color: rgba(255, 240, 240, 0.2);
+}
+
+#background {
+  width: 100vw;
+  height: 80vh;
+  background-color: rgba(100, 120, 240, 1);
+}
+
+.flower-picker {
+  pointer-events: auto;
+}
+
+.flower-picker .petal {
+  font-size: 16pt;
+  font-family: "Futura", sans-serif;
+}

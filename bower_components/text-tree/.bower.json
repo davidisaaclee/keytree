@@ -1,0 +1,37 @@
+{
+  "name": "text-tree",
+  "authors": [
+    "Anonymous <anonymous@example.com>"
+  ],
+  "description": "An element providing a solution to no problem in particular.",
+  "keywords": [
+    "web-component",
+    "web-components",
+    "polymer",
+    "seed"
+  ],
+  "main": "text-tree.html",
+  "license": "http://polymer.github.io/LICENSE.txt",
+  "ignore": [
+    "/.*",
+    "/test/",
+    "/demo/"
+  ],
+  "dependencies": {
+    "polymer": "Polymer/polymer#^1.0.0"
+  },
+  "devDependencies": {
+    "iron-component-page": "PolymerElements/iron-component-page#^1.0.0",
+    "web-component-tester": "*"
+  },
+  "homepage": "https://github.com/davidisaaclee/text-tree",
+  "_release": "2ad8a2580d",
+  "_resolution": {
+    "type": "branch",
+    "branch": "debug",
+    "commit": "2ad8a2580d33ce989a9f5780924621859392d9fb"
+  },
+  "_source": "git://github.com/davidisaaclee/text-tree.git",
+  "_target": "debug",
+  "_originalSource": "davidisaaclee/text-tree"
+}

@@ -1,0 +1,22 @@
+link(rel="import", href="../../polymer/polymer.html")
+
+dom-module#text-tree
+  style.
+    :host {
+      box-sizing: border-box;
+    }
+
+  template
+    template(is="dom-if", if="{{_isEqual(treeModel.type, 'empty')}}")
+      span.node.empty#empty
+    template(is="dom-if", if="{{_isEqual(treeModel.type, 'branch')}}")
+      span.node.branch#branch
+        template(is="dom-repeat", items="{{_createBranchElements(treeModel)}}")
+          template(is="dom-if", if="{{_isEqual(item.type, 'literal')}}")
+            span.literal {{item.text}}
+          template(is="dom-if", if="{{_isEqual(item.type, 'hole')}}")
+            span.hole(on-down="_requestFill",
+                      hole-id="{{item.identifier}}")
+              text-tree(tree-model="{{item.value}}")
+
+script(src="text-tree.js")

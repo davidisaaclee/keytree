@@ -1,0 +1,15 @@
+doctype html
+html(lang='en')
+  head
+    meta(charset="utf-8")
+    meta(name="viewport", content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes")
+    title radial-plotter demo
+    script(src="../../../../webcomponentsjs/webcomponents-lite.js")
+    link(rel="import", href="../../flower-picker.html")
+    link(rel="import", href="../../../../polymer/polymer.html")
+    link(rel="import", href="../../../../polymer-gestures/polymer-gestures.html")
+    link(rel="stylesheet", href="style.css")
+  body
+    canvas#canvas(width="500", height="500")
+
+    script(src="script.js")

@@ -7,7 +7,6 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "angular": "^1.4.0",
     "browserify": "^10.2.1",
     "gulp": "~3.8.0",
     "gulp-browserify": "^0.5.1",
@@ -18,8 +17,8 @@
     "gulp-sass": "^2.0.1",
     "gulp-stylus": "~1.0.2",
     "jquery": "^2.1.4",
+    "lodash": "^3.10.0",
     "pegjs": "^0.8.0",
-    "underscore": "^1.8.3",
     "vinyl-source-stream": "^1.1.0"
   }
 }

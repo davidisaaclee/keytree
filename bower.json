@@ -1,0 +1,26 @@
+{
+  "name": "keytree",
+  "version": "0.0.0",
+  "homepage": "https://github.com/davidisaaclee/keytree",
+  "authors": [
+    "David Lee <aewofij@gmail.com>"
+  ],
+  "moduleType": [
+    "node"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "polymer": "Polymer/polymer#~1.0.4",
+    "polymer-gestures": "Polymer/polymer-gestures#~0.5.6"
+  },
+  "devDependencies": {
+    "text-tree": "davidisaaclee/text-tree#debug"
+  }
+}

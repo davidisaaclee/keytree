@@ -1,0 +1,90 @@
+link(rel="import", href="../../polymer/polymer.html")
+
+dom-module#flower-picker
+  style.
+    :host {
+      display: block;
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+    }
+
+    #picker-container {
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+    }
+
+    .flower {
+      display: inline-block;
+      position: absolute;
+    }
+
+    .petal {
+      display: inline-block;
+      position: absolute;
+
+      padding: 5px;
+      border: 1px solid #ccc;
+      background-color: #eee;
+
+      white-space: nowrap;
+
+      cursor: pointer;
+    }
+
+    .pistil {
+      width: 10px;
+      height: 10px;
+      border-radius: 10px;
+
+      background-color: #ccc;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px hsl(0, 0%, 60%);
+    }
+
+    .branch {
+      background-color: #fff;
+      border-radius: 1em;
+    }
+    
+    .leaf {
+      border-color: #777;
+      background-color: #eee;
+      border-radius: 0.25em;
+    }
+
+    .inactive-petal {
+      cursor: default;
+      visibility: hidden;
+    }
+
+    .over-petal {
+      border: 1px solid #222;
+      background-color: #fff;
+    }
+
+    .back-petal {
+      padding: 0;
+
+      width: 10px;
+      height: 10px;
+      border-radius: 10px;
+
+      background-color: #ccc;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px hsl(0, 0%, 60%);
+    }
+
+    .unselectable {
+      -moz-user-select: -moz-none;
+      -khtml-user-select: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+
+  template
+    #picker-container(on-track="_nullFn")
+
+script(src="flower-picker.js")
