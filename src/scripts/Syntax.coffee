@@ -79,6 +79,9 @@ class Hole extends Symbol
   display: () -> "&lt;#{@identifier}&gt;"
 
 
+class VarArgs extends Hole
+
+
 class Regex extends Symbol
   constructor: (@pattern) ->
 
@@ -134,17 +137,20 @@ class Node
     holeIndex = 0
     notify = @_notifyChanged
     @sequence.symbols.forEach (sym, index) =>
-      if sym.constructor.name is 'Hole'
-        @holes[sym.identifier] =
-          id: sym.identifier
-          group: sym.group
-          index: index
-          holeIndex: holeIndex++
-          value: null
-          fill: (withNode) ->
-            @value = withNode
-            withNode.notifyChanged notify
-            do notify
+      match sym,
+        Hole: (hole) =>
+          @holes[hole.identifier] =
+            id: hole.identifier
+            group: hole.group
+            index: index
+            holeIndex: holeIndex++
+            value: null
+            fill: (withNode) ->
+              @value = withNode
+              withNode.notifyChanged notify
+              do notify
+        VarArgs: (varargs) =>
+          
 
   # sequence :: Sequence
   sequence: undefined
