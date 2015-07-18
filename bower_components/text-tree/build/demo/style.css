@@ -24,9 +24,11 @@ body {
   tab-size: 30px;
   font-family: 'Source Code Pro', monospace; }
 
-.empty:after {
-  content: '_';
-  visibility: hidden; }
+.empty {
+  color: #988; }
+
+.special-node {
+  border: 2px solid black; }
 
 .selected > .node {
   background-color: rgba(50, 200, 50, 0.2); }

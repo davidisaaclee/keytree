@@ -1,7 +1,9 @@
 ### text-tree
 ###
 
-parseTemplate = (require 'grammar_parser').parse
+_ = require 'lodash'
+
+parseTemplate = (require 'grammar-parser').parse
 
 TextTree = Polymer
   is: 'text-tree'
@@ -61,6 +63,12 @@ TextTree = Polymer
   _isEqual: (a, b) -> a is b
 
   _createBranchElements: (model) ->
+    # HACK: There's something really fishy going on here...
+    #       Check out `text-tree.jade` for more info.
+    if model is undefined
+      console.log '_createBranchElements for undefined!'
+      return []
+
     numericPath =
       if model.numericPath?
       then model.numericPath
@@ -69,51 +77,74 @@ TextTree = Polymer
       if model.idPath?
       then model.idPath
       else []
+    # FIXME: I don't think this first `if` is ever reached...
     if model.type is 'empty'
-      [{
+      console.log 'empty type'
+      [
         type: 'empty'
         numericPath: numericPath
         idPath: idPath
-      }]
+      ]
     else if model.type is 'branch'
-      template = model.template
       children = if model.children? then model.children else []
+      template = parseTemplate model.template
+      result = []
+      holeCount = 0
+      template.forEach (elm, idx) ->
+        switch elm.type
+          when 'hole'
+            pathInfo =
+              numericPath: [numericPath..., holeCount]
+              idPath: [idPath..., elm.identifier]
 
-      result = parseTemplate template
-      holes = result.filter (elm) -> elm.type is 'hole'
+            _.assign children[holeCount], pathInfo
+            _.assign elm, pathInfo, {value: children[holeCount]}
 
-      while children.length < holes.length
-        children.push {type: 'empty'}
+            result.push elm
+            holeCount++
+          when 'variadic'
+            # eat ALL the children
+            for i in [holeCount...children.length]
+              subhole =
+                type: 'hole'
+                identifier: "#{elm.identifier}-#{i}"
+                index: elm.index + (i - holeCount)
+                holeIndex: holeCount
 
-      holes.forEach (elm, idx) ->
-        myNumericPath = [numericPath..., idx]
-        myIdPath = [idPath..., elm.identifier]
+              pathInfo =
+                numericPath: [numericPath..., i]
+                idPath: [idPath..., subhole.identifier]
 
-        elm.value = children[idx]
-        elm.numericPath = myNumericPath
-        elm.idPath = myIdPath
-        elm.value.numericPath = myNumericPath
-        elm.value.idPath = myIdPath
+              _.assign children[i], pathInfo
+              _.assign subhole, pathInfo, {value: children[i]}
+
+              result.push subhole
+              holeCount++
+          when 'literal'
+            result.push elm
+          else
+            console.log 'invalid node type', elm.type, elm
 
       return result
+
+      # holes = template.filter (elm) -> elm.type is 'hole'
+
+      # while children.length < holes.length
+      #   children.push {type: 'empty'}
+
+      # holes.forEach (elm, idx) ->
+      #   myNumericPath = [numericPath..., idx]
+      #   myIdPath = [idPath..., elm.identifier]
+
+      #   elm.value = children[idx]
+      #   elm.numericPath = myNumericPath
+      #   elm.idPath = myIdPath
+      #   elm.value.numericPath = myNumericPath
+      #   elm.value.idPath = myIdPath
+
+      # return template
     else
       console.log 'Unrecognized node model type: ', model.type
-
-  _touchDownHole: (evt, detail) ->
-    # HACK: for to stop extraneous mousedown trigger
-    # (I believe that the extraneous event is being somehow caused by
-    #   importing polymer-gestures separately in the non-Polymer portion
-    #   of the app.)
-    # if evt.type is 'down'
-    #   # stop propagation so that only the deepest node responds
-    #   evt.stopPropagation()
-
-    #   nodeModel = evt.model.item
-    #   @fire 'request-fill',
-    #     idPath: nodeModel.idPath
-    #     numericPath: nodeModel.numericPath
-    #     nodeModel: nodeModel
-    #     sender: this
 
   _requestFill: (evt, detail) ->
     # stop propagation so that only the deepest node responds
@@ -125,3 +156,16 @@ TextTree = Polymer
       numericPath: nodeModel.numericPath
       nodeModel: nodeModel
       sender: this
+
+  _idOfHole: ({idPath}) -> _.last idPath
+
+  _getClassesFromModel: ({classes}) ->
+    if not classes?
+      classes = []
+    if typeof classes is 'string'
+      classes = classes.split ' '
+
+    r = _.toArray arguments
+      .splice 1
+    r.push classes...
+    return r.join ' '

@@ -5,8 +5,8 @@ html(lang='en')
     meta(name="viewport", content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes")
     title flower-picker demo
     script(src="../../../webcomponentsjs/webcomponents-lite.js")
-    link(rel="import", href="../flower-picker.html")
     link(rel="import", href="../../../polymer/polymer.html")
+    link(rel="import", href="../flower-picker.html")
     link(rel="stylesheet", href="style.css")
   body
     #container
@@ -17,94 +17,4 @@ html(lang='en')
     #background
     #pickedElement
 
-    script.
-      var fp = document.querySelector('flower-picker');
-      var bg = document.querySelector('#background');
-
-      function handleSelect (evt) {
-        console.log('selected', evt.detail.value);
-        document.querySelector('#pickedElement').innerHTML = 'selected: ' + evt.detail.value;
-      }
-
-      handleDown = function (evt) {
-        console.log('down');
-        fp.start({x: evt.detail.x, y: evt.detail.y});
-      }
-
-      handleUp = function (evt) {
-        console.log('up');
-        fp.finish({x: evt.detail.x, y: evt.detail.y});
-      }
-
-      Polymer.Gestures.add(bg, 'down', handleDown);
-      Polymer.Gestures.add(bg, 'up', handleUp);
-      fp.addEventListener('selected', handleSelect);
-
-      var petals = [
-        {
-          model: {foo: 3, bar: 'bar'},
-          display: (function (model) { return model.bar }),
-          value: (function (model) { return model.bar }),
-          isLeaf: true
-        },
-        {
-          model: {foo: 3, bar: 'bar none'},
-          display: (function (model) { return model.bar }),
-          value: (function (model) { return model.bar }),
-          isLeaf: true
-        },
-        {
-          model: 'group',
-          isLeaf: false,
-          children: [
-            {
-              model: {foo: 3, bar: 'bar'},
-              display: (function (model) { return model.bar }),
-              value: (function (model) { return model.bar }),
-              isLeaf: true
-            },
-            {
-              model: {foo: 3, bar: 'bar'},
-              display: (function (model) { return model.bar }),
-              value: (function (model) { return model.bar }),
-              isLeaf: true
-            },
-            {
-              model: 'group',
-              isLeaf: false,
-              children: [
-                {
-                  model: {foo: 3, bar: 'bar'},
-                  display: function (model) { return 'foo: ' + model.foo },
-                  isLeaf: true
-                }
-              ]
-            },
-            {
-              model: {foo: 3, bar: 'bar'},
-              display: (function (model) { return model.bar }),
-              value: (function (model) { return model.bar }),
-              isLeaf: true
-            },
-            {
-              model: {foo: 3, bar: 'bar'},
-              display: (function (model) { return model.bar }),
-              value: (function (model) { return model.bar }),
-              isLeaf: true
-            },
-          ]
-        },
-        {
-          model: {foo: 3, bar: 'bar'},
-          display: (function (model) { return model.bar }),
-          value: (function (model) { return model.bar }),
-          isLeaf: true
-        },
-        {
-          model: {foo: 3, bar: 'bar'},
-          display: (function (model) { return model.bar }),
-          value: (function (model) { return model.bar }),
-          isLeaf: true
-        },
-      ]
-      fp.petals = petals;
+    script(src="script.js")

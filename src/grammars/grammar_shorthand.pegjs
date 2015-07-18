@@ -20,15 +20,20 @@ start =
 lit =
   text:([^`]+) { return wrap('literal', concat(text)) }
 
-cons = hole
+cons = varargs
+     / hole
      / regex
 
+varargs =
+  "`" id:([a-z]i / "-")+ ":" group:([a-z]i / "-")+ "*`"
+  { return wrap('varargs', concat(group), concat(id)) }
+
 hole =
-  "`" id:[^`\\:]+ ":" group:[^`\\]+ "`"
+  "`" id:([a-z]i / "-")+ ":" group:([a-z]i / "-")+ "`"
   { return wrap('hole', concat(group), concat(id)) }
 
 regex =
-  "`" id:[^`\\:]+ ":\\" pattern:[^`]+ "`"
+  "`" id:([a-z]i / "-")+ ":\\" pattern:[^`]+ "`"
   { return wrap('regex', concat(pattern), concat(id)) }
 
 // litRules =

@@ -1,3 +1,6 @@
+$picker-font-size: 12pt;
+$code-font-size: 14pt;
+
 @mixin user-select($option) {
   user-select: $option;
   -moz-user-select: $option;
@@ -30,10 +33,14 @@ body {
       height: 100%;
 
       font-family: 'Source Code Pro', monospace;
-      font-size: 20pt;
+      font-size: $picker-font-size;
 
       .petal, .pistil {
         box-shadow: 1px 1px 1px 0px rgba(0, 0, 0, 0.3);
+      }
+
+      .petal {
+        text-align: center;
       }
     }
   }
@@ -45,7 +52,7 @@ body {
     .node {
       display: inline-block;
 
-      margin: 2px 0px;
+      margin: 2px 1px;
       padding: 2px 4px;
 
       border-radius: 10px;
@@ -54,20 +61,34 @@ body {
       white-space: pre-wrap;
       tab-size: 30px;
       font-family: 'Source Code Pro', monospace;
-      font-size: 20pt;
+      font-size: $code-font-size;
       color: #333;
 
       transition: all 0.1s ease;
+
+      span {
+        vertical-align: middle;
+      }
     }
 
     .active-node {
       background-color: rgba(255, 255, 255, 0.4);
     }
 
-    .empty:after {
-      content: '_';
-      visibility: hidden;
+    .hole {
+      // display: flex;
+      // flex-direction: row;
+      // align-items: center;
     }
+
+    .empty {
+      color: #666;
+    }
+
+    // .empty:after {
+    //   content: '_';
+    //   visibility: hidden;
+    // }
 
   }
 }

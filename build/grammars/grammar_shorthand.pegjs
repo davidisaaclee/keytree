@@ -5,8 +5,12 @@
     return str.join('')
   }
 
-  function wrap (tag, value) {
-    return { type: tag, value: value }
+  function wrap (tag, value, id) {
+    if (id == null) {
+      return { type: tag, value: value }
+    } else {
+      return { type: tag, value: value, id: id }
+    }
   }
 }
 
@@ -16,15 +20,21 @@ start =
 lit =
   text:([^`]+) { return wrap('literal', concat(text)) }
 
-cons = hole
+cons = varargs
+     / hole
      / regex
 
+varargs =
+  "`" id:([a-z]i / "-")+ ":" group:([a-z]i / "-")+ "*`"
+  { return wrap('varargs', concat(group), concat(id)) }
+
 hole =
-  "`" group:[^`\\]+ "`" { return wrap('hole', concat(group)) }
+  "`" id:([a-z]i / "-")+ ":" group:([a-z]i / "-")+ "`"
+  { return wrap('hole', concat(group), concat(id)) }
 
 regex =
-  "`\\" pattern:[^`]+ "`" { return wrap('regex', concat(pattern)) }
-
+  "`" id:([a-z]i / "-")+ ":\\" pattern:[^`]+ "`"
+  { return wrap('regex', concat(pattern), concat(id)) }
 
 // litRules =
 //   'START':

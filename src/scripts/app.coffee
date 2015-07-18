@@ -1,16 +1,21 @@
 _ = require 'lodash'
+fs = require 'browserify-fs'
+path = require 'path-browserify'
+console.log path
+loadYaml = (require 'js-yaml').safeLoad
 match = require 'util/match'
 {Grammar, \
  Sequence, \
- S: {Literal, Hole, Regex}, \
+ S: {Literal, Hole, Regex, Variadic}, \
  SyntaxTree, \
  Node} = require 'Syntax'
-parseGrammar = (require 'parsers/grammar_shorthand').parse
+parseGrammar = (require 'parsers/grammar-shorthand').parse
 
 class App
   # points to active SyntaxTree node
-  # {node: Node, path: <path as array>}
-  _activeNode: null
+  # {hole: {fill(), group, holeIndex, id, isVariadic, value:Node},
+  #  path: <path as array>}
+  _activeHole: null
 
   # flower-picker DOM element
   _flowerPicker: null
@@ -34,7 +39,7 @@ class App
       pathToHole = evt.detail.idPath
       selectedRulesAsPetals =
         @_rulesToPetals \
-          @syntaxTree.grammar.productions, \
+          @syntaxTree.grammar, \
           [@syntaxTree.navigateHole(pathToHole).group]
       holeElement = evt.detail.tree.navigate pathToHole
       nodeElement = holeElement.querySelector '.node'
@@ -51,7 +56,7 @@ class App
         x: holeRect.left + holeRect.width / 2
         y: holeRect.top + holeRect.height / 2
 
-      @setActiveNode pathToHole
+      @setActiveHole pathToHole
       @_flowerPicker.petals = selectedRulesAsPetals
       @_flowerPicker.start holeCenter
 
@@ -62,10 +67,11 @@ class App
 
     onFlowerPickerSelect = (event) =>
       model = event.detail.value
-      sequence = @syntaxTree.grammar.makeSequence model.group, model.identifier
-      @_activeNode?.node.fill (new Node sequence)
+      console.log 'selected (end)', model
+      sequence = @syntaxTree.grammar.makeSequence model.group, model.identifier, model.data
+      @_activeHole?.hole.fill (new Node sequence)
 
-    @setActiveNode [0]
+    @setActiveHole [0], true
     @_textRoot.addEventListener 'requested-fill', startFlowerPicker
     Polymer.Gestures.add @_textRoot, 'up', endFlowerPicker
     @_flowerPicker.addEventListener 'selected', onFlowerPickerSelect
@@ -78,37 +84,56 @@ class App
         if node?
           type: 'branch'
           template: node.sequence.templateString().replace ///\t///g, '  '
-          children: Object.keys(node.holes).map (key) ->
-            helper node.holes[key].value, key, node.holes[key].holeIndex
+          children: node.holeList.map (elm) ->
+            helper elm.value, elm.id, elm.holeIndex
         else
           type: 'empty'
       helper st.root
     updateView = () =>
       @_textRoot.treeModel = syntaxTreeToTextTree @syntaxTree, 'start', 0
+      @_textRoot.dispatchEvent (new CustomEvent 'changed')
 
     do updateView
     @syntaxTree.notifyChanged updateView
 
-  setActiveNode: (path) ->
-    node = @syntaxTree.navigateHole path
-    @_activeNode =
-      if node?
+  setActiveHole: (path, useNumericPath) ->
+    hole = @syntaxTree.navigateHole path, useNumericPath
+    @_activeHole =
+      if hole?
         path: path
-        node: node
+        hole: hole
       else
         null
 
-    @_textRoot.select path
-    return node
+    @_textRoot.select path, useNumericPath
+    return hole
 
-  _rulesToPetals: (rules, groups) ->
-      if not groups?
-        groups = Object.keys rules
-      result =
-        groups.map (group) ->
-          model: group
-          isLeaf: false
-          children: (Object.keys rules[group]).map (innerKey) ->
+  _rulesToPetals: (grammar, groups) ->
+    rules = grammar.productions
+    if not groups?
+      groups = Object.keys rules
+    result =
+      groups.map (group) ->
+        model: group
+        isLeaf: false
+        children: (Object.keys rules[group]).map (innerKey) ->
+          needsInput =
+            _.any rules[group][innerKey].symbols, (sym) ->
+              sym.constructor.name is 'Regex'
+          if needsInput
+            type: 'input'
+            model: rules[group][innerKey]
+            isLeaf: true
+            display: (model, data) ->
+              if data? and data.length > 0
+              then do (grammar.makeSequence group, innerKey, data).display
+              else do (grammar.makeSequence group, innerKey).display
+            value: (model, data) ->
+              console.log 'value ', arguments
+              group: group
+              identifier: innerKey
+              data: data
+          else
             model: rules[group][innerKey]
             isLeaf: true
             display: (model) -> model.display()
@@ -116,9 +141,9 @@ class App
               group: group
               identifier: innerKey
               sequence: model
-      if result.length is 1
-      then result[0].children
-      else result
+    if result.length is 1
+    then result[0].children
+    else result
 
 
 window.addEventListener 'WebComponentsReady', () ->
@@ -128,6 +153,8 @@ window.addEventListener 'WebComponentsReady', () ->
     'NE':
       'num-lit': '(num `digits:N`)'
       'arith-op': '(arith `rator:A`\n\t`randl:NE`\n\t`randr:NE`)'
+      'list': '(list `element:NE*`)'
+      'variable': '(box `identifier:\\[a-z]+`)'
     'N':
       'digits': '`digits:\\[0-9]+`'
     'A':
@@ -144,21 +171,51 @@ window.addEventListener 'WebComponentsReady', () ->
           switch type
             when 'literal' then new Literal value
             when 'hole' then new Hole value, id
-            when 'regex' then new Regex value
+            when 'varargs' then new Variadic value, id
+            when 'regex' then new Regex value, id
             else console.log 'unrecognized production: ', type, value
 
   mock.grammar = new Grammar mock.rules
   mock.syntaxTree = new SyntaxTree mock.grammar, 'NE'
 
+  ## TODO: test filling varholes programmatically; maybe need to
+  ##       reimplement `walk`?
   numNode = new Node (mock.grammar.makeSequence 'NE', 'num-lit')
   arithNode = new Node (mock.grammar.makeSequence 'NE', 'arith-op')
+  listNode = new Node (mock.grammar.makeSequence 'NE', 'list')
 
   mock.syntaxTree.root
     .navigateHole [0], true
     .fill arithNode
 
-  mock.syntaxTree.root
-    .navigateHole [0, 1], true
-    .fill numNode
+  # mock.syntaxTree.root
+  #   .navigateHole [0, 0], true
+  #   .fill numNode
+
+  # mock.syntaxTree.root
+  #   .navigateHole [0, 1], true
+  #   .fill arithNode
+
+  # mock.syntaxTree.root
+  #   .navigateHole [0], true
+  #   .fill arithNode
+
+  # mock.syntaxTree.root
+  #   .navigateHole [0, 1], true
+  #   .fill numNode
 
   app = new App {syntaxTree: mock.syntaxTree}
+
+  Polymer.Gestures.add (document.querySelector '#render'), 'up', (evt) ->
+    console.log app.syntaxTree.root.render()
+
+  document.querySelector '#tree'
+    .addEventListener 'changed', (evt) ->
+      console.log app.syntaxTree.root.render()
+
+  path = '../scripts/app.js'
+  console.log path
+  fs.realpath __dirname, (err, resolved) ->
+    console.log 'realpath', arguments
+  fs.readdir '/', (err, data) ->
+    console.log 'readdir', arguments

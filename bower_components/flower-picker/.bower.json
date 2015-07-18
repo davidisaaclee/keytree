@@ -26,11 +26,11 @@
     "iron-component-page": "PolymerElements/iron-component-page#^1.0.0",
     "web-component-tester": "*"
   },
-  "_release": "1cbd67bec3",
+  "_release": "c40492561a",
   "_resolution": {
     "type": "branch",
     "branch": "master",
-    "commit": "1cbd67bec3e46d2aa1cf80aec5bc72757fd31dcc"
+    "commit": "c40492561aea1380b43f9a058398202f4e4d725f"
   },
   "_source": "git://github.com/davidisaaclee/flower-picker.git",
   "_target": "*",
