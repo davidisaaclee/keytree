@@ -1,70 +1,73 @@
 'use strict';
 
-var gulp      = require('gulp');
-var changed   = require('gulp-changed');
-var source    = require('vinyl-source-stream');
-var sass      = require('gulp-sass');
-var coffeeify = require('gulp-coffeeify');
-var jade      = require('gulp-jade');
-var jasmine   = require('gulp-jasmine');
+var _          = require('lodash');
+var gulp       = require('gulp');
+var browserify = require('browserify');
+var sass       = require('gulp-sass');
+var coffeeify  = require('coffeeify');
+var jade       = require('gulp-jade');
+var source     = require('vinyl-source-stream');
+var sourcemaps = require('gulp-sourcemaps');
+var buffer     = require('vinyl-buffer');
+var del        = require('del');
 
 
 var options = {};
 
 options['coffee'] = {
-  src: './src/scripts/**/*.coffee',
-  dst: './build/scripts',
+  src: './src/**/*.coffee',
+  dst: './build',
   options: {
-    options: {
-      debug: true,
-      paths: [__dirname + '/node_modules', __dirname + '/src/scripts']
-    }
+    debug: true,
+    basedir: __dirname + '/src/scripts',
+    paths: [__dirname + '/node_modules', __dirname + '/src/scripts'],
+    dest: './build',
+    extensions: ['.coffee']
   }
 };
 
-options['coffeeSpec'] = {
-  src: './src/spec/**/*.coffee',
-  dst: './build/spec',
-  options: {
-    options: {
-      debug: true,
-      paths: [
-        __dirname + '/node_modules',
-        __dirname + '/src/scripts'
-      ]
-    }
-  }
-};
+options['copy'] = {
+  src: './src/**/!(*.coffee|*.scss|*.jade)',
+  dst: './build'
+}
 
 options['sass'] = {
-  src: './src/*.scss',
+  src: './src/**/*.scss',
   dst: './build'
 };
 
 options['jade'] = {
   src: './src/**/*.jade',
-  dst: './build/',
+  dst: './build',
   options: {
-    pretty: true
-  }
-};
-
-options['jasmine'] = {
-  src: './build/spec/**.js',
-  options: {
-    verbose: true
+    pretty: false
   }
 };
 
 
-gulp.task('default', ['scripts', 'jade', 'sass']);
-gulp.task('compile-test', ['scripts', 'jasmine']);
+gulp.task('default', ['build', 'watch']);
 
-gulp.task('scripts', function () {
-  return gulp.src(options.coffee.src)
-    .pipe(changed(options.coffee.dst))
-    .pipe(coffeeify(options.coffee.options))
-    .pipe(gulp.dest(options.coffee.dst));
+gulp.task('build', ['copy', 'coffee', 'jade', 'sass']);
+
+gulp.task('coffee', function () {
+  var b = browserify(_.extend(options.coffee.options, {
+    entries: './app.coffee',
+    outputName: 'app.js',
+    transform: [coffeeify]
+  }));
+
+  return b.bundle()
+    .pipe(source('app.js'))
+    .pipe(buffer())
+    .pipe(sourcemaps.init({loadMaps: true}))
+      .pipe(coffeeify())
+    .pipe(sourcemaps.write('./'))
+    .pipe(gulp.dest('./build'));
+})
+
+gulp.task('copy', function () {
+  return gulp.src(options.copy.src)
+    .pipe(gulp.dest(options.copy.dst));
 });
 
 gulp.task('sass', function () {
@@ -79,14 +82,15 @@ gulp.task('jade', function () {
     .pipe(gulp.dest(options.jade.dst))
 });
 
-gulp.task('build-tests', function () {
-  return gulp.src(options.coffeeSpec.src)
-    .pipe(changed(options.coffeeSpec.dst))
-    .pipe(coffeeify(options.coffeeSpec.options))
-    .pipe(gulp.dest(options.coffeeSpec.dst));
-  });
-
-gulp.task('jasmine', ['scripts', 'build-tests'], function () {
-  return gulp.src(options.jasmine.src)
-    .pipe(jasmine(options.jasmine.options));
+gulp.task('watch', function () {
+  gulp.watch(options.copy.src, ['copy']);
+  gulp.watch(options.coffee.src, ['coffee']);
+  gulp.watch(options.sass.src, ['sass']);
+  gulp.watch(options.jade.src, ['jade']);
 });
+
+gulp.task('clean', function () {
+  del([
+    'build/**'
+  ]);
+})

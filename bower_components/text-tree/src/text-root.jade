@@ -1,0 +1,13 @@
+link(rel="import", href="../../polymer/polymer.html")
+link(rel="import", href="text-tree.html")
+
+dom-module#text-root
+  style.
+    :host {
+      box-sizing: border-box;
+    }
+
+  template
+    text-tree#root(tree-model="[[treeModel]]")
+
+script(src="text-root.js")

@@ -1,0 +1,34 @@
+body {
+  background: #db8787;
+  background: -moz-radial-gradient(center, ellipse cover, #db8787 0%, #cb3434 100%);
+  background: -webkit-gradient(radial, center center, 0px, center center, 100%, color-stop(0%, #db8787), color-stop(100%, #cb3434));
+  background: -webkit-radial-gradient(center, ellipse cover, #db8787 0%, #cb3434 100%);
+  background: -o-radial-gradient(center, ellipse cover, #db8787 0%, #cb3434 100%);
+  background: -ms-radial-gradient(center, ellipse cover, #db8787 0%, #cb3434 100%);
+  background: radial-gradient(ellipse at center, #db8787 0%, #cb3434 100%);
+  width: 100vw;
+  height: 100vh; }
+
+#container {
+  width: 80vw;
+  height: 60vh;
+  background-color: #e66e5a; }
+
+.node {
+  display: inline-block;
+  margin: 2px 4px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background-color: rgba(255, 255, 255, 0.2);
+  white-space: pre;
+  tab-size: 30px;
+  font-family: 'Source Code Pro', monospace; }
+
+.empty {
+  color: #988; }
+
+.special-node {
+  border: 2px solid black; }
+
+.selected > .node {
+  background-color: rgba(50, 200, 50, 0.2); }

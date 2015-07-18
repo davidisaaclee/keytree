@@ -1,15 +1,1 @@
-<!DOCTYPE html>
-<html lang="en" ng-app="keyTree">
-  <head>
-    <title>keytree</title>
-    <script src="../node_modules/angular/angular.min.js"></script>
-    <link rel="stylesheet" href="style.css">
-  </head>
-  <body>
-    <div id="container" ng-controller="KeyTreeController as kt">
-      <kt-symbol model="kt.filteredData"></kt-symbol>
-      <kt-flower model="kt.flowerData"></kt-flower>
-    </div>
-    <script src="scripts/app.js"></script>
-  </body>
-</html>
+<!DOCTYPE html><html lang="en"><head><title>keytree</title><meta charset="UTF-8"><meta name="viewport" content="width=device-height,                   initial-scale=1,                   user-scalable=no"><script src="../bower_components/webcomponentsjs/webcomponents-lite.js"></script><link rel="import" href="../bower_components/polymer/polymer.html"><link rel="import" href="../bower_components/text-tree/build/text-root.html"><link rel="import" href="../bower_components/flower-picker/build/flower-picker.html"><link rel="stylesheet" href="style.css"></head><body unresolved><div id="container"><div id="overlay"><flower-picker id="picker" radius="100" on-selected="handleSelected" stay-within="container"></flower-picker></div><div id="app"><text-root id="tree"></text-root><div><button id="render">Render</button></div></div></div><script src="scripts/app.js"></script></body></html>

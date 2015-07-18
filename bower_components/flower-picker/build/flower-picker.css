@@ -1,0 +1,14 @@
+:host {
+  display: block;
+  box-sizing: border-box;
+  width: 400px;
+  height: 400px;
+  background-color: #efe; }
+
+.petal {
+  display: inline-block;
+  position: absolute;
+  padding: 5px;
+  border-radius: 2px;
+  border: 1px solid #ccc;
+  background-color: #fff; }
