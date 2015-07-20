@@ -43,6 +43,7 @@ body {
       #container #app .node span {
         vertical-align: middle; }
     #container #app .active-node {
-      background-color: rgba(255, 255, 255, 0.4); }
+      background-color: rgba(255, 255, 255, 0.4);
+      border: 1px solid green; }
     #container #app .empty {
       color: #666; }

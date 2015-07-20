@@ -1,19 +1,16 @@
 _ = require 'lodash'
-fs = require 'browserify-fs'
-path = require 'path-browserify'
-console.log path
-loadYaml = (require 'js-yaml').safeLoad
 match = require 'util/match'
+{SyntaxTree, \
+ Node} = require 'Syntax'
 {Grammar, \
  Sequence, \
- S: {Literal, Hole, Regex, Variadic}, \
- SyntaxTree, \
- Node} = require 'Syntax'
+ S: {Literal, Hole, Regex, Variadic}} = require 'Grammar'
 parseGrammar = (require 'parsers/grammar-shorthand').parse
 
 class App
   # points to active SyntaxTree node
-  # {hole: {fill(), group, holeIndex, id, isVariadic, value:Node},
+  # {nodeModel: Node,
+  #  nodeElement: HTMLElement,
   #  path: <path as array>}
   _activeHole: null
 
@@ -26,6 +23,7 @@ class App
   constructor: ({@syntaxTree}) ->
     do @setup
     @loadState @syntaxTree
+    setTimeout () => @setActiveHole []
 
   setup: () ->
     @_flowerPicker = document.querySelector '#picker'
@@ -33,19 +31,16 @@ class App
 
     preventDefault = (evt) -> do evt.preventDefault
 
-    deactivateHole = null
     startFlowerPicker = (evt) =>
       @_flowerPicker.style['pointer-events'] = 'auto'
       pathToHole = evt.detail.idPath
+
       selectedRulesAsPetals =
         @_rulesToPetals \
           @syntaxTree.grammar, \
-          [@syntaxTree.navigateHole(pathToHole).group]
+          [@syntaxTree.navigate(pathToHole).holeInformation.group]
       holeElement = evt.detail.tree.navigate pathToHole
       nodeElement = holeElement.querySelector '.node'
-      Polymer.dom(nodeElement).classList.add 'active-node'
-      deactivateHole = () ->
-        Polymer.dom(nodeElement).classList.remove 'active-node'
 
       # FIXME: Getting the bounding client rect here seems to be buggy
       #   on Safari - pinch-zooming in the webpage changes the location
@@ -61,17 +56,15 @@ class App
       @_flowerPicker.start holeCenter
 
     endFlowerPicker = (evt) =>
-      do deactivateHole
+      # do deactivateHole
       @_flowerPicker.style['pointer-events'] = 'none'
       @_flowerPicker.finish {x: evt.detail.x, y: evt.detail.y}
 
     onFlowerPickerSelect = (event) =>
       model = event.detail.value
-      console.log 'selected (end)', model
       sequence = @syntaxTree.grammar.makeSequence model.group, model.identifier, model.data
-      @_activeHole?.hole.fill (new Node sequence)
+      @_activeHole?.nodeModel.fill sequence
 
-    @setActiveHole [0], true
     @_textRoot.addEventListener 'requested-fill', startFlowerPicker
     Polymer.Gestures.add @_textRoot, 'up', endFlowerPicker
     @_flowerPicker.addEventListener 'selected', onFlowerPickerSelect
@@ -81,32 +74,36 @@ class App
   loadState: (syntaxTree) ->
     syntaxTreeToTextTree = (st) ->
       helper = (node, holeId, holeIndex) ->
-        if node?
+        if node.isFilled
           type: 'branch'
           template: node.sequence.templateString().replace ///\t///g, '  '
-          children: node.holeList.map (elm) ->
-            helper elm.value, elm.id, elm.holeIndex
+          children: node.children.map helper
         else
           type: 'empty'
       helper st.root
     updateView = () =>
-      @_textRoot.treeModel = syntaxTreeToTextTree @syntaxTree, 'start', 0
+      @_textRoot.treeModel = syntaxTreeToTextTree @syntaxTree
       @_textRoot.dispatchEvent (new CustomEvent 'changed')
 
     do updateView
-    @syntaxTree.notifyChanged updateView
+    @syntaxTree.addEventListener 'changed', updateView
 
   setActiveHole: (path, useNumericPath) ->
-    hole = @syntaxTree.navigateHole path, useNumericPath
-    @_activeHole =
-      if hole?
-        path: path
-        hole: hole
-      else
-        null
+    if @_activeHole?
+      Polymer.dom(@_activeHole.nodeElement).classList.remove 'active-node'
 
-    @_textRoot.select path, useNumericPath
-    return hole
+    nodeModel = @syntaxTree.navigate path, useNumericPath
+    if nodeModel?
+      @_activeHole =
+        path: path
+        nodeModel: nodeModel
+        nodeElement:
+          @_textRoot.navigate(path, useNumericPath).querySelector '.node'
+      Polymer.dom(@_activeHole.nodeElement).classList.add 'active-node'
+    else
+      @_activeHole = null
+
+    return nodeModel
 
   _rulesToPetals: (grammar, groups) ->
     rules = grammar.productions
@@ -117,30 +114,27 @@ class App
         model: group
         isLeaf: false
         children: (Object.keys rules[group]).map (innerKey) ->
-          needsInput =
-            _.any rules[group][innerKey].symbols, (sym) ->
-              sym.constructor.name is 'Regex'
-          if needsInput
-            type: 'input'
+          common =
             model: rules[group][innerKey]
             isLeaf: true
-            display: (model, data) ->
-              if data? and data.length > 0
-              then do (grammar.makeSequence group, innerKey, data).display
-              else do (grammar.makeSequence group, innerKey).display
             value: (model, data) ->
-              console.log 'value ', arguments
               group: group
               identifier: innerKey
               data: data
-          else
-            model: rules[group][innerKey]
-            isLeaf: true
-            display: (model) -> model.display()
-            value: (model) ->
-              group: group
-              identifier: innerKey
               sequence: model
+          needsInput =
+            _.any rules[group][innerKey].symbols, (sym) ->
+              sym.constructor.name is 'Regex'
+          custom =
+            if needsInput
+              type: 'input'
+              display: (model, data) ->
+                if data? and data.length > 0
+                then do (grammar.makeSequence group, innerKey, data).display
+                else do (grammar.makeSequence group, innerKey).display
+            else
+              display: (model) -> model.display()
+          _.extend custom, common
     if result.length is 1
     then result[0].children
     else result
@@ -178,15 +172,15 @@ window.addEventListener 'WebComponentsReady', () ->
   mock.grammar = new Grammar mock.rules
   mock.syntaxTree = new SyntaxTree mock.grammar, 'NE'
 
-  ## TODO: test filling varholes programmatically; maybe need to
-  ##       reimplement `walk`?
-  numNode = new Node (mock.grammar.makeSequence 'NE', 'num-lit')
-  arithNode = new Node (mock.grammar.makeSequence 'NE', 'arith-op')
-  listNode = new Node (mock.grammar.makeSequence 'NE', 'list')
+  child = new Node mock.syntaxTree.root, 'start', (mock.grammar.makeSequence 'NE', 'arith-op')
 
-  mock.syntaxTree.root
-    .navigateHole [0], true
-    .fill arithNode
+  # numNode = Node.makeRoot (mock.grammar.makeSequence 'NE', 'num-lit')
+  # arithNode = Node.makeRoot (mock.grammar.makeSequence 'NE', 'arith-op')
+  # listNode = Node.makeRoot (mock.grammar.makeSequence 'NE', 'list')
+
+  # mock.syntaxTree
+  #   .navigate [0], true
+  #   .fill arithNode
 
   # mock.syntaxTree.root
   #   .navigateHole [0, 0], true
@@ -208,14 +202,3 @@ window.addEventListener 'WebComponentsReady', () ->
 
   Polymer.Gestures.add (document.querySelector '#render'), 'up', (evt) ->
     console.log app.syntaxTree.root.render()
-
-  document.querySelector '#tree'
-    .addEventListener 'changed', (evt) ->
-      console.log app.syntaxTree.root.render()
-
-  path = '../scripts/app.js'
-  console.log path
-  fs.realpath __dirname, (err, resolved) ->
-    console.log 'realpath', arguments
-  fs.readdir '/', (err, data) ->
-    console.log 'readdir', arguments
