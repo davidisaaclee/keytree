@@ -2,120 +2,15 @@ _ = require 'lodash'
 match = require 'util/match' # class-based pattern matching
 require 'util/property' # convenience wrapper for Object.defineProperty
 
-# ---- MODEL ---- #
-
-# The grammar of a single language.
-class Grammar
-  constructor: (@productions) ->
-
-  # productions :: { [<identifier> : { [<identifier> : Sequence] }] }
-  productions: undefined
-
-  # makeSequence :: String -> String -> {} -> Sequence
-  makeSequence: (groupId, sequenceId, data) ->
-    if data?
-    then @productions[groupId]?[sequenceId].withData data
-    else @productions[groupId]?[sequenceId]
-
-
-# # A set of production rules for a particular nonterminal.
-# class Production
-#   constructor: (@symbols) ->
-
-#   # # The identifier corresponding to this rule set's nonterminal.
-#   # # identifier :: String
-#   # identifier: undefined
-
-#   # Set of symbols which can be produced by this rule set.
-#   # symbols :: {<identifier>: <Symbol>}
-#   symbols: undefined
-
-
-# Describes and matches a `Symbol` as a sequence of `Piece`s.
-class Sequence
-  constructor: (@symbols) ->
-
-  # symbols :: [Symbol]
-  symbols: undefined
-
-  display: () ->
-    @symbols
-      .map (sym) -> do sym.display
-      .join ''
-
-  templateString: () ->
-    @symbols
-      .map (sym) ->
-        match sym,
-          Literal: ({text}) -> text
-          VarArgs: ({identifier, group}) -> "`#{identifier}*`"
-          Hole: ({identifier, group}) -> "`#{identifier}`"
-          Regex: ({identifier, pattern}) -> "`#{identifier}`"
-      .join ''
-
-  # Creates a copy of this `Sequence` with the specified data filled-in.
-  withData: (data) ->
-    if not (_.any @symbols, (sym) -> sym.constructor.name is 'Regex')
-    then this
-    else new Sequence @symbols.map (sym) ->
-      if sym.constructor.name is 'Regex'
-      then new Literal data
-      else sym
-
-
-# A single element of a `Sequence`.
-class Symbol
-  display: () -> 'display() not implemented.'
-
-
-# An unchanging string literal; a terminal.
-class Literal extends Symbol
-  constructor: (@text) ->
-
-  # text :: String
-  text: undefined
-
-  display: () -> @text
-
-
-# A hole to be filled; annotated with a valid group identifier for filling; a nonterminal.
-class Hole extends Symbol
-  constructor: (@group, @identifier) ->
-
-  # the identifier of the group this hole wants
-  # group :: String
-  group: undefined
-
-  # the identifier of this hole
-  # identifier :: String
-  identifier: undefined
-
-  display: () -> "<#{@identifier}>"
-
-
-class VarArgs extends Hole
-  display: () -> "<#{@identifier}...>"
-
-
-class Regex extends Symbol
-  constructor: (@pattern, @identifier) ->
-
-  # identifier :: String
-  identifier: undefined
-
-  # pattern :: String
-  pattern: undefined
-
-  display: () -> "<#{@identifier}...>"
-
-
-# ---- INSTANCE ---- #
+{Grammar, Sequence, S} = require 'Grammar'
+{Literal, Hole, Regex, Variadic} = S
 
 # Represents a syntax tree, containing all information necessary to render the text.
 class SyntaxTree
   constructor: (@grammar, startGroup) ->
-    @root = new Node (new Sequence [new Hole startGroup, 'start']), this
     @_listeners = {}
+    @root = Node.makeRoot (new Sequence [new Hole startGroup, 'start'])
+    @root.routeEvents this
 
   # root :: Node
   root: undefined
@@ -123,121 +18,146 @@ class SyntaxTree
   # grammar :: Grammar
   grammar: undefined
 
-  fillHole: (path, fillWith, useNumericPath) ->
-    @root
-      .navigateHole path, useNumericPath
-      .fill fillWith
-    @_notifyChanged()
-
-  navigateHole: (path, useNumericPath) ->
-    @root.navigateHole path, useNumericPath
+  # Returns the `Node` at `path`, or `null` if no such node.
+  # Should handle variadic IDs ("<identifier>-<clone number>").
+  # TODO: If the base ID of a variadic hole is an element of the `path`...?
+  navigate: (path, useNumericPath) ->
+    @root.navigate path, useNumericPath
 
   # Register a callback to be executed on tree modification.
   # Returns an unsubscribe function.
-  _numberOfCallbacks: 0
-  notifyChanged: (callback) ->
-    cbId = "#cb-#{@_numberOfCallbacks++}"
-    @_listeners[cbId] = callback
-    return () -> delete _listeners[cbId]
+  addEventListener: (kind, callback) ->
+    if not @_listeners[kind]?
+      @_listeners[kind] = []
+    l = @_listeners[kind].push callback
+    return () => @_listeners[kind][l] = undefined
 
-  _notifyChanged: () => cb() for k, cb of @_listeners
+  dispatchEvent: (kind, details) => @_listeners[kind].forEach (cb) -> cb? details
+
+  # If `node` has children, return the first child.
+  # If `node` has no children, but has a succeeding sibling,
+  #   return that sibling.
+  # Otherwise, return `node`.
+  nextNode: (node) ->
+    if (_.any node.holeList, ({value}) -> value?)
+      node.holeList[0]
+    else
+      console.log node
 
 
-# Represents a node in a `SyntaxTree`, containing the ability to render itself and its children.
+###
+Represents a node in a `SyntaxTree`, containing the ability to render itself and
+its children.
+
+Public
+- sequence: Sequence
+  : Template sequence for this Node.
+- parent: Node
+- children: [Node]
+  : List of children in order of sequence (expanded varargs)
+- childrenMap: {<id>: Node | [Node]}
+  : Maps hole id to child node. For variadic holes, maps the base ID to an array
+    of all children of that node.
+- isFilled: Boolean
+  : `true` if this node has been given a sequence.
+- fill: Node -> Node
+  : Replaces this node's sequence & children with the specified node's sequence
+    and children.
+- holeInformation: - {id: String,
+                      group: String,
+                      isVariadic: Boolean,
+                      sequenceIndex: Integer
+                      holeIndex: Integer}
+  : Dictionary of information about the hole which this node fills.
+Private
+- _setSequence: Sequence -> ()
+  : Sets this node's sequence, creating hole list, empty children, etc.
+- _holes: { <hole id>: {id: String,
+                        group: String,
+                        isVariadic: Boolean,
+                        sequenceIndex: Integer
+                        holeIndex: Integer}}
+  : Map of information about the holes which this Node offers.
+###
+
 class Node
-  constructor: (@sequence, parent) ->
-    @_holes = {}
-    @_listeners = {}
+  ###
+  Node.prototype.constructor - generic constructor
+    parent - the to-be-created Node's parent
+    holeId - the id of the hole in the parent which the new Node will fill
+    sequence - the syntactic sequence that the new node will follow
+  ###
+  constructor: (parent, holeId, sequence) ->
+    @_eventListeners = {}
 
-    # User-facing count of holes, expanding variadic holes.
-    Object.defineProperty this, 'holeCount',
-      get: () ->
-        iteratee = (acc, val) ->
-          if val.isVariadic
-          then acc.count += val.value.length
-          else acc.count += 1
-        (_.transform @_holes, iteratee, {count: 0}).count
-
-    # User-facing list of holes in sequence order, expanding variadic holes.
-    Object.defineProperty this, 'holeList',
-      get: () ->
-        iteratee = (acc, elm) ->
-          coerceVarIntoHole = (varargs) ->
-            varargs.value.map (val, idx) ->
-              customizations =
-                id: "#{varargs.id}-#{idx}"
-                value: val
-                fill: (withNode) -> varargs.fill withNode, idx
-              _.chain varargs
-                .clone()
-                .extend customizations
-                .value()
-
-          if elm.isVariadic
-          then acc.unshift (coerceVarIntoHole elm)...
-          else acc.unshift elm
-        _.sortBy (_.transform @_holes, iteratee, []), _.property 'index'
-
-    if parent?._notifyChanged?
-      @notifyChanged parent._notifyChanged
-
-    holeIndex = 0
-    notify = @_notifyChanged
-    @sequence.symbols.forEach (sym, index) =>
-      match sym,
-        Hole: (hole) =>
-          @_holes[hole.identifier] =
-            id: hole.identifier
-            group: hole.group
-            isVariadic: false
-            index: index
-            holeIndex: holeIndex++
-            value: null
-            fill: (withNode) ->
-              @value = withNode
-              withNode.notifyChanged notify
-              do notify
-        VarArgs: (varargs) =>
-          @_holes[varargs.identifier] =
-            id: varargs.identifier
-            group: varargs.group
-            isVariadic: true
-            index: index
-            holeIndex: holeIndex++
-            value: [null]
-            fill: (withNode, atIndex) ->
-              @value[atIndex] = withNode
-              if (@value.length - 1) is atIndex
-                @value.push null
-              withNode.notifyChanged notify
-              do notify
-        else: ->
-
-  # sequence :: Sequence
-  sequence: undefined
-
-  # Holds the underlying models for the holes. Importantly, variadic holes
-  #   will only occupy one entry in this object, regardless of how many holes
-  #   within the variadic hole are filled.
-  # To interface with holes more colloquially, use the `holeCount` or
-  #   `holeList` properties.
-  # holes :: {
-  #   <identifier>: {
-  #     id :: String,
-  #     group :: String,
-  #     index :: Integer,  # the index in the sequence
-  #     holeIndex :: Integer,  # the index among the holes in the sequence
-  #     value :: Node, (or for VarArgs, [Node])
-  #     fill :: Node -> () } }
-  _holes: undefined
-
-  # # User-facing count of holes, expanding variadic holes.
-  # @property 'holeCount' # defined in constructor
+    Object.defineProperty this, 'parent',
+      get: () -> @_parent
+      set: (newValue) =>
+        @_parent = newValue
+        if @_parent?
+          @holeInformation = @_parent._holes[holeId]
+    @_eventParent = @parent = parent
 
 
-  # # User-facing list of holes in sequence order, expanding variadic holes.
-  # @property 'holeList' # defined in constructor
+    if sequence?
+    then @_setSequence sequence
+    else @isFilled = false
 
+  ###
+  Node.makeRoot - creates a parentless Node, given only the sequence
+  ###
+  @makeRoot: (sequence) ->
+    result = new Node()
+    result._setSequence sequence
+    return result
+
+  ###
+  holeInformation: - {id: String,
+                      group: String,
+                      isVariadic: Boolean,
+                      sequenceIndex: Integer
+                      holeIndex: Integer} - dict of information about the hole
+                                            that this node fills
+  ###
+  holeInformation: null
+
+  fill: (sequence) ->
+    @_setSequence sequence
+    @dispatchEvent 'changed'
+
+  ###
+  path - the numeric or id path to the desired node
+  options
+    useNumericPath - `true` if `path` argument is numeric
+    endFn - procedure to apply on the node at `path` before returning,
+            with type `(<node>) -> <return>`
+    fold
+      proc - procedure for folding, with type `(<accum>, <elm>) -> <accum>`
+      acc - initial accumulator value for folding
+  ###
+  walk: (path, options = {}) ->
+    if path.length is 0
+      if options.endFn?
+      then options.endFn this
+      else this
+    else
+      [hd, tl...] = path
+      nextChild = do =>
+        if options.useNumericPath
+        then @_getNthChild hd
+        else @_getChild hd
+
+      # Check that such a child exists.
+      if not nextChild?
+        return null
+
+      if options.fold?.proc?
+      then options.fold.acc = options.fold.proc options.fold.acc, nextChild
+
+      nextChild.walk tl, options
+
+  navigate: (path, useNumericPath) ->
+    @walk path, useNumericPath: useNumericPath
 
   # Renders this node into text, recurring on its children.
   # render :: Unit -> String
@@ -246,126 +166,104 @@ class Node
       .map (symbol) =>
         match symbol,
           Literal: ({text}) => text
+          Variadic: ({identifier, group}) =>
+            for child in @childrenMap[identifier]
+              if child.isFilled
+              then do child.render
+              else ('`' + group + '`')
           Hole: ({identifier, group}) =>
-            if @_holes[identifier].value?
+            if @childrenMap[identifier].isFilled
             then do =>
-              if @_holes[identifier].isVariadic
-              then do =>
-                @_holes[identifier].value
-                  .map (elm) -> if elm? then elm.render() else "`#{identifier}`"
-                  .join ' '
-              else do @_holes[identifier].value.render
+              do @childrenMap[identifier].render
             else ('`' + group + '`')
       .join ''
 
+  ## Event routing ##
 
-  getNthChild: (index) -> @holeList[index]
-    # for key in Object.keys @_holes
-    #   if @_holes[key].holeIndex is index
-    #   then return @_holes[key]
-    # return null
+  addEventListener: (kind, callback) ->
+    if not @_eventListeners[kind]?
+      @_eventListeners[kind] = []
+    l = @_eventListeners[kind].push callback
+    return () -> @_eventListeners[kind][l] = undefined
 
+  dispatchEvent: (kind, details) =>
+    @_eventListeners[kind]?.forEach (cb) -> cb? details
+    @_eventParent.dispatchEvent kind, details
 
-  getChild: (id) ->
-    if @_holes[id]?
-      return @_holes[id]
-    else
-      _.find @holeList, (elm) -> elm.id is id
+  routeEvents: (parent) -> @_eventParent = parent
 
-      # [prefix, index] = id.split '-'
-      # if index? and @_holes[prefix]? and @_holes[prefix].isVariadic
-      #   r = @_holes[prefix].value[parseInt index]
-      #   if r? then r else null
-      # else
-      #   return null
+  ## Private methods ##
 
+  _getChild: (id) -> @childrenMap[id]
 
+  _getNthChild: (n) -> @children[n]
 
-  idPathFromNumericPath: (numericPath) ->
-    [hd, tl...] = numericPath
-    nextHole = @getNthChild hd
+  _setSequence: (sequence) ->
+    if not sequence?
+      return
 
-    # Check that such a hole exists.
-    if not nextHole?
-      return null
+    @isFilled = true
+    @sequence = sequence
+    holeIndex = 0
+    @_holes = {}
 
-    if tl.length is 0
-    then [nextHole.id]
-    else
-      if nextHole.value?
-      then [nextHole.id, (nextHole.value.idPathFromNumericPath tl)...]
-      else []
+    # Populate the `_holes` dictionary.
+    @sequence.symbols.forEach (sym, index) =>
+      match sym,
+        Hole: (hole) =>
+          @_holes[hole.identifier] =
+            id: hole.identifier
+            group: hole.group
+            isVariadic: false
+            sequenceIndex: index
+            holeIndex: holeIndex++
+        Variadic: (varargs) =>
+          @_holes[varargs.identifier] =
+            id: varargs.identifier
+            group: varargs.group
+            isVariadic: true
+            sequenceIndex: index
+            holeIndex: holeIndex++
+        else: ->
 
+    # Populate the `children` list and `childrenMap`.
+    childCount = 0
+    @children = []
+    variadicChildrenMap = {}
+    @childrenMap = _.mapValues @_holes, (v, k) =>
+      if v.isVariadic
+        variadicId = ({__cloneNumber, holeInformation}) ->
+          "#{holeInformation.id}-#{__cloneNumber}"
 
-  walk: (path, options = {}) ->
-    [hd, tl...] = path
-    nextHole = do =>
-      if options.useNumericPath
-      then @getNthChild hd
-      else @getChild hd
+        child = new Node this, v.id
+        child.__cloneNumber = 0
+        child.variadicId = variadicId child
+        @children[childCount++] = child
+        variadicChildrenMap[child.variadicId] = child
 
-    # Check that such a hole exists.
-    if not nextHole?
-      return null
+        # override `fill` to make a new empty sibling on fill
+        scope = this
+        child.fill = () ->
+          # to first call "super"
+          Node.prototype.fill.apply this, arguments
+          # and then make a new empty sibling to take this node's place.
+          # TODO: "if there is no empty node after this node"
+          sibling = new Node scope, @holeInformation.id
+          sibling.fill = @fill
+          sibling.__cloneNumber = @__cloneNumber + 1
+          sibling.variadicId = variadicId sibling
+          scope.children[childCount++] = sibling
+          scope.childrenMap[sibling.variadicId] = sibling
+          scope.childrenMap[@holeInformation.id].push sibling
+          @dispatchEvent 'changed'
+        return [child]
+      else
+        child = new Node this, v.id
+        @children[childCount++] = child
+        return child
+    _.extend @childrenMap, variadicChildrenMap
 
-    # # Check that such a hole has a value.
-    # if not nextHole.value?
-    #   return 'empty' # ???
-
-    if options.fold?.proc?
-    then options.fold.acc = options.fold.proc options.fold.acc, nextHole
-
-    if tl.length is 0
-      if options.endFn?
-      then options.endFn nextHole.value, nextHole
-      else nextHole.value
-    else
-      if nextHole.value?
-      then nextHole.value.walk tl, options
-      else null
-
-
-  navigate: (path, useNumericPath) ->
-    @walk path, {useNumericPath: useNumericPath}
-
-  navigateHole: (path, useNumericPath) ->
-    @walk path,
-      endFn: (val, hole) -> hole
-      useNumericPath: useNumericPath
-
-  # Register a callback to be executed on tree modification.
-  # Returns an unsubscribe function.
-  _numberOfCallbacks: 0
-  notifyChanged: (callback) ->
-    cbId = "#cb-#{@_numberOfCallbacks++}"
-    @_listeners[cbId] = callback
-    return () -> delete _listeners[cbId]
-
-  _notifyChanged: () => cb() for k, cb of @_listeners
-
-
-# ---- Exports ---- #
-
-# # terser constructors: turn `new Class(args...)` into `Class(args...)`
-# generateConstructor = (klass) -> (args...) -> new klass args...
-
-# module.exports =
-#   Grammar: Grammar
-#   Sequence: generateConstructor Sequence
-#   S:
-#     Literal: generateConstructor Literal
-#     Hole: generateConstructor Hole
-#     Regex: generateConstructor Regex
-#   SyntaxTree: SyntaxTree
-#   Node: Node
 
 module.exports =
-  Grammar: Grammar
-  Sequence: Sequence
-  S:
-    Literal: Literal
-    Hole: Hole
-    Regex: Regex
-    Variadic: VarArgs
   SyntaxTree: SyntaxTree
   Node: Node

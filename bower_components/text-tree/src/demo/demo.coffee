@@ -1,7 +1,7 @@
 window.addEventListener 'WebComponentsReady', () ->
   tree =
     type: 'branch'
-    template: "(prog \n\t`program`)"
+    template: "(prog `program`)"
     children: [
       type: 'branch'
       template: "(if `cond` \n\t`then` \n\t`else`)"

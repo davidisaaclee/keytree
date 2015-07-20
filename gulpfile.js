@@ -50,17 +50,30 @@ gulp.task('default', ['build', 'watch']);
 gulp.task('build', ['copy', 'coffee', 'jade', 'sass']);
 
 gulp.task('coffee', function () {
-  var b = browserify(_.extend(options.coffee.options, {
+  var bundle = browserify(_.extend(options.coffee.options, {
     entries: './app.coffee',
     outputName: 'app.js',
     transform: [coffeeify]
-  }));
+  })).bundle();
 
-  return b.bundle()
+  bundle.on('error', function (err) {
+    console.log(err);
+    // bundle.end();
+    this.emit('end');
+  });
+
+  var c = coffeeify();
+  c.on('error', function (err) {
+    console.log(err);
+    c.end();
+  });
+
+  return bundle
     .pipe(source('app.js'))
     .pipe(buffer())
     .pipe(sourcemaps.init({loadMaps: true}))
-      .pipe(coffeeify())
+    // .pipe(coffeeify())
+    .pipe(c)
     .pipe(sourcemaps.write('./'))
     .pipe(gulp.dest('./build'));
 })
@@ -93,4 +106,9 @@ gulp.task('clean', function () {
   del([
     'build/**'
   ]);
-})
+});
+
+function onError (err) {
+  console.log(err);
+  this.emit('end');
+}

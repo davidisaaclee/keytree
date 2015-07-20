@@ -13,7 +13,7 @@ TextTree = Polymer
 
   navigate: (path, useNumericPath) ->
     @walk path,
-      endFn: (x) -> x
+      endFn: _.identity
       useNumericPath: useNumericPath
 
   getNthChild: (index) ->
@@ -37,26 +37,29 @@ TextTree = Polymer
 
   # TODO: abort fold procedures if child does not exist?
   walk: (path, options) ->
-    [hd, tl...] = path
-
-    nextChild = do =>
-      if options.useNumericPath
-      then @getNthChild hd
-      else @getChild hd
-
-    # Return `null` if no element at that path.
-    if not nextChild?
-      return null
-
-    if options.fold?.proc?
-      options.fold.acc =
-        options.fold.proc options.fold.acc, nextChild
-
-    if tl.length is 0
+    if path.length is 0
       if options.endFn?
-      then options.endFn nextChild
-      else nextChild
+      then options.endFn this
+      else this
     else
+      [hd, tl...] = path
+
+      nextChild = do =>
+        if options.useNumericPath
+        then @getNthChild hd
+        else @getChild hd
+
+      console.log 'walking ', hd, 'from', this, 'to', nextChild
+      console.log 'children:', Polymer.dom(Polymer.dom(@root).querySelector '.branch').children.map (_.property 'holeId')
+
+      # Return `null` if no element at that path.
+      if not nextChild?
+        return null
+
+      if options.fold?.proc?
+        options.fold.acc =
+          options.fold.proc options.fold.acc, nextChild
+          
       nextChild.walk tl, options
 
 

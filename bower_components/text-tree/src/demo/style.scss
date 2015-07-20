@@ -31,6 +31,10 @@ body {
 
 .node {
   display: inline-block;
+  // display: inline-flex;
+  // flex-direction: row;
+  // // align-content: flex-start;
+  // // align-items: center;
 
   margin: 2px 4px;
   padding: 7px 10px;
@@ -38,10 +42,14 @@ body {
   border-radius: 10px;
   background-color: rgba(255, 255, 255, 0.2);
 
-  white-space: pre;
+  white-space: pre-wrap;
   tab-size: 30px;
   font-family: 'Source Code Pro', monospace;
   // color: #333;
+
+  span {
+    vertical-align: middle;
+  }
 }
 
 .empty {
