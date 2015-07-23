@@ -6,125 +6,74 @@ require 'util/property' # convenience wrapper for Object.defineProperty
 class Grammar
   constructor: (@productions) ->
 
-  # productions :: { [<identifier> : { [<identifier> : Sequence] }] }
+  # productions :: { [<group> : { [<production id> : Expression] }] }
   productions: undefined
 
-  # makeSequence :: String -> String -> {} -> Sequence
-  makeSequence: (groupId, sequenceId, data) ->
+  # makeExpression :: String -> String -> {} -> Expression
+  makeExpression: (groupId, productionId, data) ->
     if data?
-    then @productions[groupId]?[sequenceId].withData data
-    else @productions[groupId]?[sequenceId]
+    then @productions[groupId]?[productionId].withData data
+    else @productions[groupId]?[productionId]
 
-# Describes and matches a `Symbol` as a sequence of `Piece`s.
-class Sequence
-  constructor: (@symbols) ->
-    @holes = {}
-    sequenceIndex = 0
-    holeIndex = 0
-    _.reduce @symbols, (acc, elm) ->
-      match elm,
-        Variadic: ({identifier, group}) ->
-          acc[identifier] =
-            id: identifier
-            group: group
-            isVariadic: true
-            sequenceIndex: sequenceIndex++
-            holeIndex: holeIndex++
-        Hole: ({identifier, group}) ->
-          acc[identifier] =
-            id: identifier
-            group: group
-            isVariadic: false
-            sequenceIndex: sequenceIndex++
-            holeIndex: holeIndex++
-        else: -> sequenceIndex++
 
-  # (defined in constructor)
-  # holes: {<identifier>: {id: String,
-  #                        group: String,
-  #                        isVariadic: Boolean,
-  #                        sequenceIndex: Integer
-  #                        holeIndex: Integer}}
+# sequence of pieces
+class Expression
+  constructor: (@pieces) ->
 
-  # symbols :: [Symbol]
-  symbols: undefined
+  withData: (data) ->
+    # TODO
+    console.log 'withData() not yet implemented.'
 
   display: () ->
-    @symbols
+    @pieces
       .map (sym) -> do sym.display
       .join ''
 
   templateString: () ->
-    @symbols
-      .map (sym) ->
-        match sym,
-          Literal: ({text}) -> text
-          Variadic: ({identifier, group}) -> "`#{identifier}*`"
-          Hole: ({identifier, group}) -> "`#{identifier}`"
-          Regex: ({identifier, pattern}) -> "`#{identifier}`"
-      .join ''
+    do @display
 
-  # Creates a copy of this `Sequence` with the specified data filled-in.
-  withData: (data) ->
-    if not (_.any @symbols, (sym) -> sym.constructor.name is 'Regex')
-    then this
-    else new Sequence @symbols.map (sym) ->
-      if sym.constructor.name is 'Regex'
-      then new Literal data
-      else sym
+class Piece
+  # type: literal | hole | subexpression
+  # data: {text: <string>}
+  #     | {identifier: <string>, group: <string>}
+  #     | {expression: <Expression>}
+  # quantifier: kleene | optional | one
+  @make: (type, data, quantifier) ->
+    if not quantifier? then quantifier = 'one'
+    switch type
+      when 'literal' then new Literal data.text, quantifier
+      when 'hole' then new Hole data.identifier, data.group, quantifier
+      when 'subexpression' then new Subexpression data.expression, quantifier
 
+  display: () ->
+    console.log 'display() not overriden for this Piece:', this
 
-# A single element of a `Sequence`.
-class Symbol
-  display: () -> 'display() not implemented.'
-
-
-# An unchanging string literal; a terminal.
-class Literal extends Symbol
-  constructor: (@text) ->
-
-  # text :: String
-  text: undefined
+class Literal extends Piece
+  constructor: (@text, @quantifier) ->
+    @type = 'literal'
+    if not @quantifier? then @quantifier = 'one'
 
   display: () -> @text
 
+class Hole extends Piece
+  constructor: (@identifier, @group, @quantifier) ->
+    @type = 'hole'
+    if not @quantifier? then @quantifier = 'one'
 
-# A hole to be filled; annotated with a valid group identifier for filling; a nonterminal.
-class Hole extends Symbol
-  constructor: (@group, @identifier) ->
+  display: () -> "<#{@identifier}:#{@group}>"
 
-  # the identifier of the group this hole wants
-  # group :: String
-  group: undefined
+class Subexpression extends Piece
+  constructor: (@expression, @quantifier) ->
+    @type = 'subexpression'
+    if not @quantifier? then @quantifier = 'one'
 
-  # the identifier of this hole
-  # identifier :: String
-  identifier: undefined
-
-  display: () -> "<#{@identifier}>"
-
-
-class Variadic extends Hole
-  display: () -> "<#{@identifier}...>"
-
-
-class Regex extends Symbol
-  constructor: (@pattern, @identifier) ->
-
-  # identifier :: String
-  identifier: undefined
-
-  # pattern :: String
-  pattern: undefined
-
-  display: () -> "<#{@identifier}...>"
+  display: () -> do @expression.display
 
 
 module.exports =
   Grammar: Grammar
-  Sequence: Sequence
-  S:
-    Literal: Literal
-    Hole: Hole
-    Regex: Regex
-    Variadic: Variadic
+  Expression: Expression
+  Piece: Piece
+  Literal: Literal
+  Hole: Hole
+  Subexpression: Subexpression

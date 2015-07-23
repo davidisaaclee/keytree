@@ -122,11 +122,38 @@ window.addEventListener 'WebComponentsReady', () ->
     type: 'branch'
     template: "i'm leaf"
 
+  newTreeFormat =
+    type: 'hole'
+    id: 'start'
+    isFilled: true
+    value: [
+      type: 'literal'
+      value: '(+ '
+     ,
+      type: 'hole'
+      id: 'randl'
+      isFilled: true
+      classes: 'special-node'
+      value: [
+        type: 'literal'
+        value: '42'
+      ]
+     ,
+      type: 'hole'
+      id: 'randr'
+      isFilled: false
+      value: null
+     ,
+      type: 'literal'
+      value: ')'
+    ]
+
   document
     .querySelector '#tree'
-    .treeModel = tree
+    .treeModel = newTreeFormat
 
   document
     .querySelector '#tree'
     .addEventListener 'requested-fill', (evt) ->
-      evt.detail.tree.select evt.detail.idPath
+      console.log 'requested-fill', arguments
+      console.log evt.detail.tree.select evt.detail.idPath

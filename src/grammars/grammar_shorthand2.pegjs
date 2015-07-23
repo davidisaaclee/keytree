@@ -21,7 +21,7 @@ expression =
     tl.forEach(function (elm) {
       result.push(elm[1]);
     });
-    return result;
+    return wrap('expression', result);
   }
 
 piece =
@@ -30,10 +30,8 @@ piece =
     if (quantifier === null) {
       quantifier = 'none';
     }
-    return {
-      content: content,
-      quantifier: quantifier
-    };
+    content['quantifier'] = quantifier;
+    return content
   }
 
 literal =

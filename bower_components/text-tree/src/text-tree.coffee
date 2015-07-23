@@ -2,14 +2,15 @@
 ###
 
 _ = require 'lodash'
-
 parseTemplate = (require 'grammar-parser').parse
 
 TextTree = Polymer
   is: 'text-tree'
 
   properties:
-    treeModel: Object
+    treeModel:
+      type: Object
+      observer: '_treeModelChanged'
 
   navigate: (path, useNumericPath) ->
     @walk path,
@@ -29,11 +30,12 @@ TextTree = Polymer
     else null
 
   getChild: (id) ->
-    branchNode = Polymer.dom(@root).querySelector '.branch'
-    for child in Polymer.dom(branchNode).children
-      if child.classList.contains 'hole'
-        if child.holeId is id
-          return child.querySelector 'text-tree'
+    Polymer.dom(@root)
+      .querySelectorAll '.node'
+      .forEach (node) ->
+        if node.holeId is id
+          console.log node
+          return node.querySelector 'text-tree'
 
   # TODO: abort fold procedures if child does not exist?
   walk: (path, options) ->
@@ -49,9 +51,6 @@ TextTree = Polymer
         then @getNthChild hd
         else @getChild hd
 
-      console.log 'walking ', hd, 'from', this, 'to', nextChild
-      console.log 'children:', Polymer.dom(Polymer.dom(@root).querySelector '.branch').children.map (_.property 'holeId')
-
       # Return `null` if no element at that path.
       if not nextChild?
         return null
@@ -59,76 +58,75 @@ TextTree = Polymer
       if options.fold?.proc?
         options.fold.acc =
           options.fold.proc options.fold.acc, nextChild
-          
+
       nextChild.walk tl, options
 
 
   _isEqual: (a, b) -> a is b
 
-  _createBranchElements: (model) ->
-    # HACK: There's something really fishy going on here...
-    #       Check out `text-tree.jade` for more info.
-    if model is undefined
-      console.log '_createBranchElements for undefined!'
-      return []
+  # _createBranchElements: (model) ->
+  #   # HACK: There's something really fishy going on here...
+  #   #       Check out `text-tree.jade` for more info.
+  #   if model is undefined
+  #     console.log '_createBranchElements for undefined!'
+  #     return []
 
-    numericPath =
-      if model.numericPath?
-      then model.numericPath
-      else []
-    idPath =
-      if model.idPath?
-      then model.idPath
-      else []
-    # FIXME: I don't think this first `if` is ever reached...
-    if model.type is 'empty'
-      console.log 'empty type'
-      [
-        type: 'empty'
-        numericPath: numericPath
-        idPath: idPath
-      ]
-    else if model.type is 'branch'
-      children = if model.children? then model.children else []
-      template = parseTemplate model.template
-      result = []
-      holeCount = 0
-      template.forEach (elm, idx) ->
-        switch elm.type
-          when 'hole'
-            pathInfo =
-              numericPath: [numericPath..., holeCount]
-              idPath: [idPath..., elm.identifier]
+  #   numericPath =
+  #     if model.numericPath?
+  #     then model.numericPath
+  #     else []
+  #   idPath =
+  #     if model.idPath?
+  #     then model.idPath
+  #     else []
+  #   # FIXME: I don't think this first `if` is ever reached...
+  #   if model.type is 'empty'
+  #     [
+  #       type: 'empty'
+  #       numericPath: numericPath
+  #       idPath: idPath
+  #     ]
+  #   else if model.type is 'branch'
+  #     children = if model.children? then model.children else []
+  #     template = parseTemplate model.template
+  #     result = []
+  #     holeCount = 0
+  #     template.forEach (elm, idx) ->
+  #       switch elm.type
+  #         when 'hole'
+  #           pathInfo =
+  #             numericPath: [numericPath..., holeCount]
+  #             idPath: [idPath..., elm.identifier]
 
-            _.assign children[holeCount], pathInfo
-            _.assign elm, pathInfo, {value: children[holeCount]}
+  #           _.assign children[holeCount], pathInfo
+  #           _.assign elm, pathInfo, {value: children[holeCount]}
 
-            result.push elm
-            holeCount++
-          when 'variadic'
-            # eat ALL the children
-            for i in [holeCount...children.length]
-              subhole =
-                type: 'hole'
-                identifier: "#{elm.identifier}-#{i}"
-                index: elm.index + (i - holeCount)
-                holeIndex: holeCount
+  #           result.push elm
+  #           holeCount++
+  #         when 'variadic'
+  #           # eat ALL the children
+  #           for i in [holeCount...children.length]
+  #             subhole =
+  #               type: 'hole'
+  #               identifier: "#{elm.identifier}-#{i}"
+  #               index: elm.index + (i - holeCount)
+  #               holeIndex: holeCount
 
-              pathInfo =
-                numericPath: [numericPath..., i]
-                idPath: [idPath..., subhole.identifier]
+  #             pathInfo =
+  #               numericPath: [numericPath..., i]
+  #               idPath: [idPath..., subhole.identifier]
 
-              _.assign children[i], pathInfo
-              _.assign subhole, pathInfo, {value: children[i]}
+  #             _.assign children[i], pathInfo
+  #             _.assign subhole, pathInfo, {value: children[i]}
 
-              result.push subhole
-              holeCount++
-          when 'literal'
-            result.push elm
-          else
-            console.log 'invalid node type', elm.type, elm
+  #             result.push subhole
+  #             holeCount++
+  #         when 'literal'
+  #           result.push elm
+  #         else
+  #           console.log 'invalid node type', elm.type, elm
 
-      return result
+  #     return result
 
       # holes = template.filter (elm) -> elm.type is 'hole'
 
@@ -146,21 +144,22 @@ TextTree = Polymer
       #   elm.value.idPath = myIdPath
 
       # return template
-    else
-      console.log 'Unrecognized node model type: ', model.type
+    # else
+    #   console.log 'Unrecognized node model type: ', model.type
 
   _requestFill: (evt, detail) ->
     # stop propagation so that only the deepest node responds
     evt.stopPropagation()
 
-    nodeModel = evt.model.item
+    # nodeModel = evt.model.item
+    nodeModel = @treeModel
     @fire 'request-fill',
-      idPath: nodeModel.idPath
-      numericPath: nodeModel.numericPath
+      idPath: nodeModel.__idPath
+      numericPath: nodeModel.__numericPath
       nodeModel: nodeModel
       sender: this
 
-  _idOfHole: ({idPath}) -> _.last idPath
+  _idOfHole: ({__idPath}) -> _.last __idPath
 
   _getClassesFromModel: ({classes}) ->
     if not classes?
@@ -172,3 +171,19 @@ TextTree = Polymer
       .splice 1
     r.push classes...
     return r.join ' '
+
+  _treeModelChanged: (model) ->
+    console.log 'tt model changed'
+    if model.type is 'hole' and model.isFilled
+      if not model.__idPath?
+        model.__idPath = [model.id]
+      if not model.__numericPath?
+        # I think this makes sense? If we need to start from a single
+        # element, then the first index can only be 0.
+        model.__numericPath = [0]
+
+      holeCount = 0
+      model.value.forEach (child) ->
+        if child.type is 'hole'
+          child.__idPath = [model.__idPath..., child.id]
+          child.__numericPath = [model.__numericPath..., holeCount++]

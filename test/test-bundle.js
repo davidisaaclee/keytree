@@ -1,254 +1,8 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var App, Expression, Grammar, Hole, Literal, Node, Piece, Subexpression, SyntaxTree, _, match, parseGrammar, ref, ref1;
-
-_ = require('lodash');
-
-match = require('util/match');
-
-ref = require('Syntax'), SyntaxTree = ref.SyntaxTree, Node = ref.Node;
-
-ref1 = require('Grammar'), Grammar = ref1.Grammar, Expression = ref1.Expression, Piece = ref1.Piece, Literal = ref1.Literal, Hole = ref1.Hole, Subexpression = ref1.Subexpression;
-
-parseGrammar = (require('parsers/grammar-new')).parse;
-
-App = (function() {
-  App.prototype._activeHole = null;
-
-  App.prototype._flowerPicker = null;
-
-  App.prototype._textRoot = null;
-
-  function App(arg) {
-    this.syntaxTree = arg.syntaxTree;
-    this.setup();
-    this.loadState(this.syntaxTree);
-    setTimeout((function(_this) {
-      return function() {
-        return _this.setActiveHole([]);
-      };
-    })(this));
-  }
-
-  App.prototype.setup = function() {
-    var endFlowerPicker, onFlowerPickerSelect, preventDefault, startFlowerPicker;
-    this._flowerPicker = document.querySelector('#picker');
-    this._textRoot = document.querySelector('#tree');
-    preventDefault = function(evt) {
-      return evt.preventDefault();
-    };
-    startFlowerPicker = (function(_this) {
-      return function(evt) {
-        var holeCenter, holeElement, holeRect, nodeElement, pathToHole, selectedRulesAsPetals;
-        console.log('startFlowerPicker');
-        _this._flowerPicker.style['pointer-events'] = 'auto';
-        pathToHole = evt.detail.idPath;
-        console.log(evt.detail);
-        selectedRulesAsPetals = _this._rulesToPetals(_this.syntaxTree.grammar, [_this.syntaxTree.navigate(pathToHole).holeInformation.group]);
-        holeElement = evt.detail.tree.navigate(pathToHole);
-        nodeElement = holeElement.querySelector('.node');
-        holeRect = holeElement.getBoundingClientRect();
-        holeCenter = {
-          x: holeRect.left + holeRect.width / 2,
-          y: holeRect.top + holeRect.height / 2
-        };
-        _this.setActiveHole(pathToHole);
-        _this._flowerPicker.petals = selectedRulesAsPetals;
-        return _this._flowerPicker.start(holeCenter);
-      };
-    })(this);
-    endFlowerPicker = (function(_this) {
-      return function(evt) {
-        console.log('endFlowerPicker');
-        _this._flowerPicker.style['pointer-events'] = 'none';
-        return _this._flowerPicker.finish({
-          x: evt.detail.x,
-          y: evt.detail.y
-        });
-      };
-    })(this);
-    onFlowerPickerSelect = (function(_this) {
-      return function(event) {
-        var expr, model, ref2;
-        model = event.detail.value;
-        expr = _this.syntaxTree.grammar.makeExpression(model.group, model.identifier, model.data);
-        return (ref2 = _this._activeHole) != null ? ref2.nodeModel.fill(expr) : void 0;
-      };
-    })(this);
-    this._textRoot.addEventListener('requested-fill', startFlowerPicker);
-    this._textRoot.addEventListener('requested-fill', function() {
-      return console.log('requested-fill!');
-    });
-    this._flowerPicker.addEventListener('selected', onFlowerPickerSelect);
-    Polymer.Base.setScrollDirection('none', this._textRoot);
-    return Polymer.Gestures.add(this._flowerPicker, 'track', preventDefault);
-  };
-
-  App.prototype.loadState = function(syntaxTree) {
-    var syntaxTreeToTextTree, updateView;
-    syntaxTreeToTextTree = function(st) {
-      var helper;
-      helper = function(node, nodeId) {
-        return {
-          type: 'hole',
-          id: node.holeInformation ? node.holeInformation.id : nodeId,
-          isFilled: node.isFilled,
-          value: (function() {
-            var pieceMap, ref2, result;
-            pieceMap = function(acc, piece, index) {
-              var childNode, toPush;
-              switch (piece.type) {
-                case 'literal':
-                  acc.push({
-                    type: 'literal',
-                    value: piece.text
-                  });
-                  break;
-                case 'hole':
-                  childNode = node.childrenMap[piece.identifier];
-                  toPush = childNode.isFilled ? helper(childNode) : {
-                    type: 'hole',
-                    id: piece.identifier,
-                    isFilled: false,
-                    value: null
-                  };
-                  acc.push(toPush);
-                  break;
-                case 'subexpression':
-                  acc.push.apply(acc, piece.expression.pieces.map(pieceMap));
-              }
-              return acc;
-            };
-            result = [];
-            if ((ref2 = node.template) != null) {
-              ref2.pieces.reduce(pieceMap, result);
-            }
-            return result;
-          })()
-        };
-      };
-      return helper(st.root, 'root');
-    };
-    updateView = (function(_this) {
-      return function() {
-        _this._textRoot.treeModel = syntaxTreeToTextTree(_this.syntaxTree);
-        console.log(_this._textRoot.treeModel);
-        return _this._textRoot.dispatchEvent(new CustomEvent('changed'));
-      };
-    })(this);
-    this.syntaxTree.addEventListener('changed', updateView);
-    return updateView();
-  };
-
-  App.prototype.setActiveHole = function(path, useNumericPath) {};
-
-  App.prototype._rulesToPetals = function(grammar, groups) {
-    var result, rules;
-    rules = grammar.productions;
-    if (groups == null) {
-      groups = Object.keys(rules);
-    }
-    result = groups.map(function(group) {
-      return {
-        model: group,
-        isLeaf: false,
-        children: (Object.keys(rules[group])).map(function(innerKey) {
-          var common, custom, needsInput;
-          common = {
-            model: rules[group][innerKey],
-            isLeaf: true,
-            value: function(model, data) {
-              return {
-                group: group,
-                identifier: innerKey,
-                data: data,
-                template: model
-              };
-            }
-          };
-          needsInput = _.any(rules[group][innerKey].symbols, function(sym) {
-            return sym.constructor.name === 'Regex';
-          });
-          custom = needsInput ? {
-            type: 'input',
-            display: function(model, data) {
-              if ((data != null) && data.length > 0) {
-                return (grammar.makeExpression(group, innerKey, data)).display();
-              } else {
-                return (grammar.makeExpression(group, innerKey)).display();
-              }
-            }
-          } : {
-            display: function(model) {
-              return model.display();
-            }
-          };
-          return _.extend(custom, common);
-        })
-      };
-    });
-    console.log('_rulesToPetals', result);
-    if (result.length === 1) {
-      return result[0].children;
-    } else {
-      return result;
-    }
-  };
-
-  return App;
-
-})();
-
-window.addEventListener('WebComponentsReady', function() {
-  var app, litRules, mock, startNode;
-  litRules = {
-    'START': {
-      'start': '<start:NE>'
-    },
-    'NE': {
-      'num-lit': '"(num " <digits:N> ")"',
-      'arith-op': '"(arith " <rator:A> "\n\t" <randl:NE> "\n\t" <randr:NE> ")"',
-      'list': '"(list " <element:NE>* ")"',
-      'list-lit': '"[" (<hd:NE> (", " <tl:NE>)*)? "]"'
-    },
-    'N': {
-      'digits': '"digit placeholder"'
-    },
-    'A': {
-      '+': '"+"',
-      '-': '"-"',
-      '*': '"*"',
-      '/': '"/"'
-    }
-  };
-  mock = {};
-  mock.rules = _.mapValues(litRules, function(vo) {
-    return _.mapValues(vo, function(vi) {
-      var parseHelper;
-      parseHelper = function(expr) {
-        switch (expr.type) {
-          case 'expression':
-            return new Expression(expr.value.map(parseHelper));
-          case 'literal':
-            return new Literal(expr.value, expr.quantifier);
-          case 'hole':
-            return new Hole(expr.id, expr.value, expr.quantifier);
-          case 'subexpression':
-            return new Subexpression(parseHelper(expr.value), expr.quantifier);
-        }
-      };
-      return parseHelper(parseGrammar(vi));
-    });
-  });
-  mock.grammar = new Grammar(mock.rules);
-  mock.syntaxTree = new SyntaxTree(mock.grammar, 'NE');
-  startNode = mock.syntaxTree.root;
-  return app = new App({
-    syntaxTree: mock.syntaxTree
-  });
-});
+require('spec/SyntaxSpec');
 
 
-},{"Grammar":3,"Syntax":4,"lodash":2,"parsers/grammar-new":5,"util/match":6}],2:[function(require,module,exports){
+},{"spec/SyntaxSpec":8}],2:[function(require,module,exports){
 (function (global){
 /**
  * @license
@@ -14133,7 +13887,254 @@ Function.prototype.property = function(prop, desc) {
 };
 
 
-},{}]},{},[1])
+},{}],8:[function(require,module,exports){
+var Expression, Grammar, Hole, Literal, Node, Piece, Subexpression, SyntaxTree, _, parseGrammar, ref, ref1,
+  slice = [].slice;
+
+_ = require('lodash');
+
+ref = require('Syntax'), SyntaxTree = ref.SyntaxTree, Node = ref.Node;
+
+ref1 = require('Grammar'), Expression = ref1.Expression, Grammar = ref1.Grammar, Piece = ref1.Piece, Literal = ref1.Literal, Hole = ref1.Hole, Subexpression = ref1.Subexpression;
+
+parseGrammar = (require('parsers/grammar-new')).parse;
+
+describe('syntax trees', function() {
+  beforeEach(function() {
+    var litRules;
+    litRules = {
+      'START': {
+        'start': '<start:NE>'
+      },
+      'NE': {
+        'num-lit': '"(num " <digits:N> ")"',
+        'arith-op': '"(arith " <rator:A> "\n\t" <randl:NE> "\n\t" <randr:NE> ")"',
+        'list': '"(list " <element:NE>* ")"',
+        'list-lit': '"[" (<hd:NE> (", " <tl:NE>)*)? "]"',
+        'subexpr-fun': '(<outerHole:NE>* (<innerHole:NE>*)*)*'
+      },
+      'N': {
+        'digits': '"digit placeholder"'
+      },
+      'A': {
+        '+': '"+"',
+        '-': '"-"',
+        '*': '"*"',
+        '/': '"/"'
+      }
+    };
+    this.rules = _.mapValues(litRules, function(vo) {
+      return _.mapValues(vo, function(vi) {
+        var parseHelper;
+        parseHelper = function(expr) {
+          switch (expr.type) {
+            case 'expression':
+              return new Expression(expr.value.map(parseHelper));
+            case 'literal':
+              return new Literal(expr.value, expr.quantifier);
+            case 'hole':
+              return new Hole(expr.id, expr.value, expr.quantifier);
+            case 'subexpression':
+              return new Subexpression(parseHelper(expr.value), expr.quantifier);
+          }
+        };
+        return parseHelper(parseGrammar(vi));
+      });
+    });
+    this.grammar = new Grammar(this.rules);
+    this.tree = new SyntaxTree(this.grammar, 'NE');
+    this.pathElm = function(type, id, index) {
+      var r;
+      r = {
+        type: type,
+        identifier: id
+      };
+      if (index != null) {
+        return _.extend(r, {
+          index: index
+        });
+      } else {
+        return r;
+      }
+    };
+    return this.instIdPathForNode = function(node) {
+      var ref2;
+      if (((ref2 = node.parent) != null ? ref2.instanceId : void 0) != null) {
+        return slice.call(this.instIdPathForNode(node.parent)).concat([node.instanceId]);
+      } else {
+        return [node.instanceId];
+      }
+    };
+  });
+  it('can create lit nodes', function() {
+    var addNode;
+    addNode = new Node(null, 'faux-+', this.grammar.makeExpression('A', '+'));
+    return expect(_.size(addNode.childrenMap)).toBe(0);
+  });
+  it('can create holed nodes', function() {
+    var numNode;
+    numNode = new Node(null, 'faux-num', this.grammar.makeExpression('NE', 'num-lit'));
+    return expect(_.size(numNode.childrenMap)).toBe(1);
+  });
+  it('can create subexprd nodes', function() {
+    var listLitNode;
+    listLitNode = new Node(null, 'faux-ll', this.grammar.makeExpression('NE', 'list-lit'));
+    return expect(_.size(listLitNode.childrenMap)).toBe(0);
+  });
+  it('can create holed nodes', function() {
+    var subexprNode;
+    subexprNode = new Node(null, 'faux-sbf', this.grammar.makeExpression('NE', 'subexpr-fun'));
+    return expect(_.size(subexprNode.childrenMap)).toBe(0);
+  });
+  it('expects root fill', function() {
+    expect(this.tree.root).not.toBeNull();
+    expect(this.tree.root.isFilled).toBe(false);
+    return expect(this.tree.root.template).toBeNull();
+  });
+  it('can fill root', function() {
+    this.tree.root.fill(this.grammar.makeExpression('NE', 'num-lit'));
+    expect(this.tree.root.isFilled).toBe(true);
+    return expect(this.tree.root.template).toEqual(this.grammar.makeExpression('NE', 'num-lit'));
+  });
+  it('can navigateExpression', function() {
+    var pathToDigits, pathToStart, pathToUndefined;
+    this.tree.root.fill(this.grammar.makeExpression('NE', 'num-lit'));
+    pathToStart = [this.pathElm('hole', 'start', 0)];
+    expect(this.tree.navigateExpression(pathToStart)).toBe(this.tree.root);
+    pathToDigits = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'digits', 0)];
+    expect(this.tree.navigateExpression(pathToDigits)).toBeDefined();
+    expect((this.tree.navigateExpression(pathToDigits)).parent).toBe(this.tree.root);
+    pathToUndefined = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'not a real id', 0)];
+    return expect(this.tree.navigateExpression(pathToUndefined)).toBeUndefined();
+  });
+  it('can navigate to information', function() {
+    var digitsInfo, pathToDigitsInfo, pathToStartInfo, startInfo;
+    this.tree.root.fill(this.grammar.makeExpression('NE', 'num-lit'));
+    pathToStartInfo = [this.pathElm('hole', 'start')];
+    startInfo = this.tree.navigateExpression(pathToStartInfo);
+    expect(startInfo).toBeDefined();
+    expect(startInfo.instances.length).toBe(1);
+    expect(startInfo.instances[0]).toBe(this.tree.root);
+    pathToDigitsInfo = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'digits')];
+    digitsInfo = this.tree.navigateExpression(pathToDigitsInfo);
+    expect(digitsInfo).toBeDefined();
+    expect(digitsInfo.instances.length).toBe(1);
+    expect(digitsInfo.node()).toBe(digitsInfo.instances[0]);
+    expect(digitsInfo.node().parent).toBe(this.tree.root);
+    return expect(digitsInfo.node().isFilled).toBe(false);
+  });
+  it('can navigate from intermediate', function() {
+    var digits1, digits2, pathToDigits1, pathToDigits2;
+    this.tree.root.fill(this.grammar.makeExpression('NE', 'num-lit'));
+    pathToDigits1 = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'digits', 0)];
+    pathToDigits2 = [this.pathElm('hole', 'digits', 0)];
+    digits1 = this.tree.navigateExpression(pathToDigits1);
+    digits2 = this.tree.root.navigateExpression(pathToDigits2);
+    return expect(digits1).toBe(digits2);
+  });
+  it('can deep fill (simple)', function() {
+    var path1, path2, path3, path4;
+    this.tree.root.fill(this.grammar.makeExpression('NE', 'arith-op'));
+    path1 = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'randr', 0)];
+    expect(this.tree.navigateExpression(path1)).toBeDefined();
+    this.tree.navigateExpression(path1).fill(this.grammar.makeExpression('NE', 'arith-op'));
+    path2 = [this.pathElm('hole', 'randr', 0)];
+    path3 = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'undefined', 0)];
+    expect(this.tree.navigateExpression(path2)).toBeUndefined();
+    expect(this.tree.navigateExpression(path1)).not.toBeUndefined();
+    expect(this.tree.navigateExpression(path1).template).toEqual(this.grammar.makeExpression('NE', 'arith-op'));
+    expect(this.tree.navigateExpression(path3)).toBeUndefined();
+    expect(this.tree.root.children().length).toBe(3);
+    expect(this.tree.navigateExpression(path1).children().length).toBe(3);
+    path4 = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'randl', 0)];
+    return expect(this.tree.navigateExpression(path4).children().length).toBe(0);
+  });
+  it('can deep fill', function() {
+    var path1, path2, path3, path4, path5;
+    this.tree.root.fill(this.grammar.makeExpression('NE', 'arith-op'));
+    path1 = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'randr', 0)];
+    this.tree.navigateExpression(path1).fill(this.grammar.makeExpression('NE', 'arith-op'));
+    expect(this.tree.navigateExpression(path1).template).toEqual(this.grammar.makeExpression('NE', 'arith-op'));
+    path2 = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'randr', 0), this.pathElm('hole', 'randr', 0)];
+    this.tree.navigateExpression(path2).fill(this.grammar.makeExpression('NE', 'arith-op'));
+    path3 = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'randr', 0), this.pathElm('hole', 'randr', 0), this.pathElm('hole', 'randl', 0)];
+    this.tree.navigateExpression(path3).fill(this.grammar.makeExpression('NE', 'num-lit'));
+    expect(this.tree.navigateExpression(path3).template).toEqual(this.grammar.makeExpression('NE', 'num-lit'));
+    path4 = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'randr', 0), this.pathElm('hole', 'randl', 0)];
+    expect(this.tree.navigateExpression(path4).template).toBeNull();
+    path5 = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'randl', 0)];
+    return expect(this.tree.navigateExpression(path5).template).toBeNull();
+  });
+  it('can fill quantified holes', function() {
+    var elementPath, path1;
+    this.tree.root.fill(this.grammar.makeExpression('NE', 'list'));
+    path1 = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'element')];
+    this.tree.navigateExpression(path1).pushEmpty();
+    elementPath = (function(_this) {
+      return function(n) {
+        return [_this.pathElm('hole', 'start', 0), _this.pathElm('hole', 'element', n)];
+      };
+    })(this);
+    this.tree.navigateExpression(elementPath(0)).fill(this.grammar.makeExpression('NE', 'arith-op'));
+    this.tree.navigateExpression(path1).pushEmpty();
+    this.tree.navigateExpression(elementPath(1)).fill(this.grammar.makeExpression('NE', 'num-lit'));
+    expect(this.tree.navigateExpression(path1).instances.length).toBe(2);
+    expect(this.tree.root.children().length).toBe(2);
+    expect(this.tree.root.children()[0].template).toEqual(this.grammar.makeExpression('NE', 'arith-op'));
+    expect(this.tree.root.children()[1].template).toEqual(this.grammar.makeExpression('NE', 'num-lit'));
+    this.tree.navigateExpression(path1).pushEmpty();
+    return expect(this.tree.navigateExpression(path1).instances.length).toBe(3);
+  });
+  it('can fill quantified holes via instance id', function() {
+    var elementInfo, elementInfoPath, idPath1, idPath2, newNode1, newNode2;
+    this.tree.root.fill(this.grammar.makeExpression('NE', 'list'));
+    elementInfoPath = [this.pathElm('hole', 'start', 0), this.pathElm('hole', 'element')];
+    elementInfo = this.tree.navigateExpression(elementInfoPath);
+    newNode1 = elementInfo.pushEmpty();
+    idPath1 = this.instIdPathForNode(newNode1);
+    expect(this.tree.navigate(idPath1)).toBe(newNode1);
+    newNode2 = elementInfo.pushEmpty();
+    idPath2 = this.instIdPathForNode(newNode2);
+    expect(this.tree.navigate(idPath2)).toBe(newNode2);
+    this.tree.navigate(idPath1).fill(this.grammar.makeExpression('NE', 'num-lit'));
+    this.tree.navigate(idPath2).fill(this.grammar.makeExpression('NE', 'arith-op'));
+    expect(this.tree.root.children()[0].template).toEqual(this.grammar.makeExpression('NE', 'num-lit'));
+    return expect(this.tree.root.children()[1].template).toEqual(this.grammar.makeExpression('NE', 'arith-op'));
+  });
+  return it('can fill quantified subexpressions', function() {
+    var pathToHd, pathToHdSubexpr, pathToRandl, pathToTl, pathToTlSubexpr, randlNode, tlNode1;
+    this.tree.root.fill(this.grammar.makeExpression('NE', 'list-lit'));
+    pathToHdSubexpr = [this.pathElm('hole', 'start', 0), this.pathElm('subexpression', 0)];
+    pathToHd = [this.pathElm('hole', 'start', 0), this.pathElm('subexpression', 0, 0), this.pathElm('hole', 'hd', 0)];
+    expect(this.tree.navigateExpression(pathToHd)).toBeUndefined();
+    this.tree.navigateExpression(pathToHdSubexpr).pushEmpty();
+    expect(this.tree.navigateExpression(pathToHd)).toBeDefined();
+    this.tree.navigateExpression(pathToHd).fill(this.grammar.makeExpression('NE', 'num-lit'));
+    expect(this.tree.navigateExpression(pathToHd).template).toEqual(this.grammar.makeExpression('NE', 'num-lit'));
+    pathToTlSubexpr = [this.pathElm('hole', 'start', 0), this.pathElm('subexpression', 0, 0), this.pathElm('subexpression', 0)];
+    pathToTl = (function(_this) {
+      return function(n) {
+        return [_this.pathElm('hole', 'start', 0), _this.pathElm('subexpression', 0, 0), _this.pathElm('subexpression', 0, n), _this.pathElm('hole', 'tl', 0)];
+      };
+    })(this);
+    this.tree.navigateExpression(pathToTlSubexpr).pushEmpty();
+    tlNode1 = this.tree.navigateExpression(pathToTl(0)).fill(this.grammar.makeExpression('NE', 'arith-op'));
+    expect(this.tree.navigate(this.instIdPathForNode(tlNode1)).template).toEqual(this.grammar.makeExpression('NE', 'arith-op'));
+    pathToRandl = slice.call(pathToTl(0)).concat([this.pathElm('hole', 'randl', 0)]);
+    randlNode = this.tree.navigateExpression(pathToRandl).fill(this.grammar.makeExpression('NE', 'arith-op'));
+    expect(this.tree.navigate(this.instIdPathForNode(randlNode)).template).toEqual(this.grammar.makeExpression('NE', 'arith-op'));
+    this.tree.navigateExpression(pathToTlSubexpr).pushEmpty();
+    this.tree.navigateExpression(pathToTl(1)).fill(this.grammar.makeExpression('NE', 'num-lit'));
+    expect(this.tree.navigateExpression(pathToTl(1)).template).toEqual(this.grammar.makeExpression('NE', 'num-lit'));
+    expect(this.tree.navigateExpression(pathToTl(2))).toBeUndefined();
+    this.tree.navigateExpression(pathToTlSubexpr).pushEmpty();
+    expect(this.tree.navigateExpression(pathToTl(2))).toBeDefined();
+    return expect(this.tree.navigateExpression(pathToTl(2)).isFilled).toBe(false);
+  });
+});
 
 
-//# sourceMappingURL=app.js.map
+},{"Grammar":3,"Syntax":4,"lodash":2,"parsers/grammar-new":5}]},{},[1])
+
+
+//# sourceMappingURL=test-bundle.js.map

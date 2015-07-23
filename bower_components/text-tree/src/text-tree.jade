@@ -7,13 +7,33 @@ dom-module#text-tree
     }
 
   template
-    template(is="dom-if", if="{{_isEqual(treeModel.type, 'empty')}}")
+    //- I don't think we need this first case, but maybe for a single literal tree? idk
+    template(is="dom-if", if="{{_isEqual(treeModel.type, 'literal')}}")
+      span(class$="{{_getClassesFromModel(treeModel, 'literal')}}") {{treeModel.value}}
+
+    template(is="dom-if", if="{{_isEqual(treeModel.type, 'hole')}}")
+      template(is="dom-if", if="{{!treeModel.isFilled}}")
+        span(class$="{{_getClassesFromModel(treeModel, 'node', 'empty')}}",
+             on-down="_requestFill",
+             hole-id="{{treeModel.id}}") {{treeModel.id}}
+      template(is="dom-if", if="{{treeModel.isFilled}}")
+        span(class$="{{_getClassesFromModel(treeModel, 'node', 'branch')}}",
+             on-down="_requestFill", hole-id="{{item.identifier}}")
+          template(is="dom-repeat", items="{{treeModel.value}}")
+            template(is="dom-if", if="{{_isEqual(item.type, 'literal')}}")
+              span.literal {{item.value}}
+            template(is="dom-if", if="{{_isEqual(item.type, 'hole')}}")
+              text-tree(tree-model="{{item}}")
+              //- span.hole(on-down="_requestFill", hole-id="{{item.identifier}}")
+                text-tree(tree-model="{{item}}")
+
+    //- template(is="dom-if", if="{{_isEqual(treeModel.type, 'empty')}}")
       span(class$="{{_getClassesFromModel(treeModel, 'node', 'empty')}}") {{_idOfHole(treeModel)}}
     //- FIXME: Empty `treeModel`s are passing this `dom-if`, resulting in
     //-   passing empty models to `_createBranchElements`, and `undefined`
     //-   models to `text-tree` (although this is stopped by the temporary
     //-   workaround in `_createBranchElements`).
-    template(is="dom-if", if="{{_isEqual(treeModel.type, 'branch')}}")
+    //- template(is="dom-if", if="{{_isEqual(treeModel.type, 'branch')}}")
       span(class$="{{_getClassesFromModel(treeModel, 'node', 'branch')}}")
         template(is="dom-repeat", items="{{_createBranchElements(treeModel)}}")
           template(is="dom-if", if="{{_isEqual(item.type, 'literal')}}")

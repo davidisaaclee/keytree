@@ -21,7 +21,7 @@
     "polymer-gestures": "Polymer/polymer-gestures#~0.5.6"
   },
   "devDependencies": {
-    "text-tree": "davidisaaclee/text-tree"
+    "text-tree": "davidisaaclee/text-tree#no-parser"
   },
   "resolutions": {
     "text-tree": "ccd8821bea"
