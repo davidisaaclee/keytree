@@ -24,16 +24,17 @@ describe 'syntax trees', () ->
     @rules =
       _.mapValues litRules, (vo) ->
         _.mapValues vo, (vi) ->
-          parseHelper = (expr) ->
-            switch expr.type
+          parseHelper = ({type, value, id, quantifier}) ->
+            switch type
               when 'expression'
-                new Expression expr.value.map parseHelper
+                new Expression value.map parseHelper
               when 'literal'
-                new Literal expr.value, expr.quantifier
+                new Literal value, quantifier
               when 'hole'
-                new Hole expr.id, expr.value, expr.quantifier
+                new Hole id, value, quantifier
               when 'subexpression'
-                new Subexpression (parseHelper expr.value), expr.quantifier
+                # new Subexpression (parseHelper value), quantifier, id
+                new Subexpression (new Expression value.map parseHelper), quantifier, id
           parseHelper parseGrammar vi
     @grammar = new Grammar @rules
     @tree = new SyntaxTree @grammar, 'NE'
@@ -56,8 +57,7 @@ describe 'syntax trees', () ->
       .toBe 0
 
   it 'can create holed nodes', () ->
-    numNode =
-      new Node null, 'faux-num', @grammar.makeExpression 'NE', 'num-lit'
+    numNode = Node.makeRoot @grammar.makeExpression 'NE', 'num-lit'
     expect _.size numNode.childrenMap
       .toBe 1
 
@@ -365,3 +365,36 @@ describe 'syntax trees', () ->
       .toBeDefined()
     expect @tree.navigateExpression(pathToTl 2).isFilled
       .toBe false
+
+
+  it 'can flatten nodes', () ->
+    @tree.root.fill (@grammar.makeExpression 'NE', 'list')
+    path1 = [
+      @pathElm 'hole', 'start', 0
+      @pathElm 'hole', 'element'
+    ]
+    @tree.navigateExpression(path1).pushEmpty()
+
+    elementPath = (n) => [
+      @pathElm 'hole', 'start', 0
+      @pathElm 'hole', 'element', n
+    ]
+    @tree.navigateExpression elementPath 0
+      .fill (@grammar.makeExpression 'NE', 'arith-op')
+    @tree.navigateExpression(path1).pushEmpty()
+    @tree.navigateExpression elementPath 1
+      .fill (@grammar.makeExpression 'NE', 'num-lit')
+
+    flattened = do @tree.root.flatten
+    expect flattened[0].type
+      .toBe 'literal'
+    expect flattened[1].type
+      .toBe 'hole'
+    expect flattened[1].isFilled
+      .toBe true
+    expect flattened[1].value[0].type
+      .toBe 'literal'
+    expect flattened[1].value[0].value
+      .toBe '(arith '
+    expect flattened[1].value.length
+      .toBe 7

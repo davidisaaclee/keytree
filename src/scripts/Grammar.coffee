@@ -63,7 +63,7 @@ class Hole extends Piece
   display: () -> "<#{@identifier}:#{@group}>"
 
 class Subexpression extends Piece
-  constructor: (@expression, @quantifier) ->
+  constructor: (@expression, @quantifier, @identifier) ->
     @type = 'subexpression'
     if not @quantifier? then @quantifier = 'one'
 

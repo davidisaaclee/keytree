@@ -90,6 +90,8 @@ class SyntaxTree
   routeEvents: (parent) ->
     @_eventParent = parent
 
+  flatten: () -> do @_baseNode.flatten
+
   # If `node` has children, return the first child.
   # If `node` has no children, but has a succeeding sibling,
   #   return that sibling.
@@ -214,7 +216,6 @@ class Node
   Replaces this node's template with the specified template expression.
   ###
   fill: (template) ->
-    # console.log 'Should `fill` be deprecated?'
     @_setTemplate template
     @dispatchEvent 'changed'
     return this
@@ -260,7 +261,7 @@ class Node
       nextChild.walk tl, options
 
   ###
-  Navigates to the _instance_ at `path`.
+  Navigates to the _instance_ at instance ID path `path`.
   ###
   navigate: (path, useNumericPath) ->
     @walk path, useNumericPath: useNumericPath
@@ -308,8 +309,10 @@ class Node
           switch hd.type
             when 'hole' then info.holes[hd.identifier]
             when 'subexpression'
-              subId = @_makeSubexprId hd.identifier
-              info.subexpressions[subId]
+              # subId = @_makeSubexprId hd.identifier
+              # subId = 'group::' + hd.identifier # HACK :(
+              # info.subexpressions[subId]
+              info.subexpressions[hd.identifier]
 
         # console.log 'hd', hd
         # console.log 'info', info
@@ -340,19 +343,20 @@ class Node
   Renders this node into text, recurring on its children.
   ###
   render: () ->
-    renderPiece = (piece) =>
-      switch piece.type
-        when 'literal' then piece.text
-        when 'hole'
-          if @childrenMap[identifier].isFilled
-          then do =>
-            do @childrenMap[identifier].render
-          else ('`' + group + '`')
-        when 'subexpression'
-          piece.expression.pieces.map renderPiece
-    @template.pieces
-      .map renderPiece
-      .join ''
+    console.log 'render() not implemented'
+    # renderPiece = (piece) =>
+    #   switch piece.type
+    #     when 'literal' then piece.text
+    #     when 'hole'
+    #       if @childrenMap[identifier].isFilled
+    #       then do =>
+    #         do @childrenMap[identifier].render
+    #       else ('`' + group + '`')
+    #     when 'subexpression'
+    #       piece.expression.pieces.map renderPiece
+    # @template.pieces
+    #   .map renderPiece
+    #   .join ''
 
   ###
   children :: () -> [Node]
@@ -375,6 +379,46 @@ class Node
           acc.push r...
           return acc
     @_instanceInfo.infoList.reduce iteratee, []
+
+  ###
+  "Flattens" this node's descendants into a concrete syntax tree.
+
+  ReturnType ::= CST
+
+  CST ::= LiteralElement
+        | HoleElement
+
+  LiteralElement ::=
+    type: 'literal'
+    value: String
+
+  HoleElement ::=
+    type: 'hole'
+    isFilled: Boolean
+    id: String
+    value: [ReturnType]
+
+  ###
+  # TODO: should the `pushEmpty` functions be put in this structure?
+  flatten: () ->
+    reduction = (info) -> (acc = [], pc) ->
+      switch pc.type
+        when 'literal'
+          acc.push {type: 'literal', value: pc.text}
+        when 'hole'
+          Array.prototype.push.apply acc, \
+            info.holes[pc.identifier].instances.map (instance) ->
+              type: 'hole'
+              isFilled: instance.isFilled
+              id: instance.holeInformation.id
+              value: if instance.isFilled then do instance.flatten else []
+        when 'subexpression'
+          Array.prototype.push.apply acc, \
+            info.subexpressions[pc.identifier].instances.map (instance) ->
+              pc.value.reduce (reduction instance), acc
+      return acc
+
+    @template.pieces.reduce (reduction @_instanceInfo), []
 
   ## Event routing ##
 
@@ -419,7 +463,8 @@ class Node
               quantifier: piece.quantifier
               subexpressionPath: subexprPath
           when 'subexpression'
-            r = makeHoleInfo [subexprPath..., parentNode._makeSubexprId subexprIndex++]
+            # r = makeHoleInfo [subexprPath..., parentNode._makeSubexprId subexprIndex++]
+            r = makeHoleInfo [subexprPath..., piece.identifier]
             piece.expression.pieces.reduce r
         return acc
     @_holes = template.pieces.reduce (makeHoleInfo []), {}
@@ -466,7 +511,8 @@ class Node
           when 'subexpression'
             if not acc.subexpressions?
               acc.subexpressions = {}
-            subId = parentNode._makeSubexprId Object.keys(acc.subexpressions).length
+            # subId = parentNode._makeSubexprId Object.keys(acc.subexpressions).length
+            subId = elm.identifier
             subExprInfo =
               instances: []
               pushEmpty: () ->

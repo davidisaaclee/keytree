@@ -10,9 +10,34 @@
       return { type: tag, value: value, id: id }
     }
   }
+
+//  var _idTags = {};
+//
+//  function makeUniqueId (tag) {
+//    if (_idTags[tag] == undefined) {
+//      _idTags[tag] = 0;
+//    }
+//    return tag + '::' + _idTags[tag]++;
+//  }
 }
 
-start = expression
+start = expr:expression
+  {
+    // After parsing, add subexpression context fields.
+    var iteratee = function () {
+      var subexprIndex = 0;
+      return function (elm) {
+        if (elm.type == 'subexpression') {
+          elm['id'] = subexprIndex++;
+          elm.value = elm.value.map(iteratee());
+          return elm;
+        }
+        return elm;
+      };
+    }
+    expr.value = expr.value.map(iteratee());
+    return expr;
+  }
 
 expression =
   (hd:piece tl:(ws piece)*)
@@ -28,7 +53,7 @@ piece =
   content:(literal / hole / grouping) quantifier:quantifier?
   {
     if (quantifier === null) {
-      quantifier = 'none';
+      quantifier = 'one';
     }
     content['quantifier'] = quantifier;
     return content
@@ -46,10 +71,13 @@ hole =
     return wrap('hole', group, id);
   }
 
+// TODO: add nesting unique IDs for groups
 grouping =
   "(" expr:expression ")"
   {
-    return wrap('group', expr);
+    // return wrap('subexpression', expr); // <- this doesn't work now
+    expr.type = 'subexpression'
+    return expr;
   }
 
 identifier =

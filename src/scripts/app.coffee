@@ -33,7 +33,6 @@ class App
       console.log 'startFlowerPicker'
       @_flowerPicker.style['pointer-events'] = 'auto'
       pathToHole = evt.detail.idPath
-      console.log evt.detail
 
       selectedRulesAsPetals =
         @_rulesToPetals \
@@ -102,35 +101,36 @@ class App
 
   loadState: (syntaxTree) ->
     syntaxTreeToTextTree = (st) ->
-      helper = (node, nodeId) ->
-        type: 'hole'
-        id: if node.holeInformation then node.holeInformation.id else nodeId
-        isFilled: node.isFilled
-        value: do ->
-          pieceMap = (acc, piece, index) ->
-            switch piece.type
-              when 'literal'
-                acc.push
-                  type: 'literal'
-                  value: piece.text
-              when 'hole'
-                # TODO: quantifiers
-                childNode = node.childrenMap[piece.identifier]
-                toPush =
-                  if childNode.isFilled
-                  then helper childNode
-                  else
-                    type: 'hole'
-                    id: piece.identifier
-                    isFilled: false
-                    value: null
-                acc.push toPush
-              when 'subexpression'
-                acc.push (piece.expression.pieces.map pieceMap)...
-            return acc
-          result = []
-          node.template?.pieces.reduce pieceMap, result
-          return result
+      (do st.flatten)[0] # we don't care about _baseNode
+      # helper = (node, nodeId) ->
+      #   type: 'hole'
+      #   id: if node.holeInformation then node.holeInformation.id else nodeId
+      #   isFilled: node.isFilled
+      #   value: do ->
+      #     pieceMap = (acc, piece, index) ->
+      #       switch piece.type
+      #         when 'literal'
+      #           acc.push
+      #             type: 'literal'
+      #             value: piece.text
+      #         when 'hole'
+      #           # TODO: quantifiers
+      #           childNode = node.childrenMap[piece.identifier]
+      #           toPush =
+      #             if childNode.isFilled
+      #             then helper childNode
+      #             else
+      #               type: 'hole'
+      #               id: piece.identifier
+      #               isFilled: false
+      #               value: null
+      #           acc.push toPush
+      #         when 'subexpression'
+      #           acc.push (piece.expression.pieces.map pieceMap)...
+      #       return acc
+      #     result = []
+      #     node.template?.pieces.reduce pieceMap, result
+      #     return result
 
         # if node.isFilled
         #   type: 'branch'
@@ -138,10 +138,9 @@ class App
         #   children: node.children.map helper
         # else
         #   type: 'empty'
-      helper st.root, 'root'
+      # helper st.root, 'root'
     updateView = () =>
       @_textRoot.treeModel = syntaxTreeToTextTree @syntaxTree
-      console.log @_textRoot.treeModel
       @_textRoot.dispatchEvent (new CustomEvent 'changed')
 
     @syntaxTree.addEventListener 'changed', updateView
