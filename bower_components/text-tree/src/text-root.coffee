@@ -1,22 +1,26 @@
 Polymer
   is: 'text-root'
 
+  properties:
+    treeModel: Object
+
   listeners:
     'request-fill': '_fillRequested'
     # 'down': '_handleDown'
 
   selected: null
 
-  rootNode: () -> this.$['root'].querySelector '.node'
+  # rootNode: () -> this.$['root'].querySelector '.node'
+  rootNode: () -> this.$['root']
 
   select: (path, useNumericPath) ->
     if @selected?
       @unselect.apply @, @selected
 
     selectedElm = this.$.root.walk path,
-      endFn: (elm) ->
-        Polymer.dom(elm).classList.add 'selected'
-        return elm
+      endFn: (node) ->
+        Polymer.dom(node).classList.add 'selected'
+        return node
       useNumericPath: useNumericPath
 
     if selectedElm? then @selected = arguments
@@ -25,10 +29,8 @@ Polymer
 
   unselect: (path, useNumericPath) ->
     this.$.root.walk path,
-      endFn: (elm) ->
-        Polymer.dom(elm).classList.remove 'selected'
-      fold:
-        proc: (acc, elm) -> Polymer.dom(elm).classList.remove 'selected'
+      endFn: (node) ->
+        Polymer.dom(node).classList.remove 'selected'
       useNumericPath: useNumericPath
 
   navigate: (path, useNumericPath) -> this.$.root.navigate path, useNumericPath

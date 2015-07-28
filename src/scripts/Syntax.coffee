@@ -184,6 +184,9 @@ class Node
       set: (newValue) =>
         @_parent = newValue
         if @_parent?
+          if not @_parent._holes[holeId]?
+            console.log 'ERROR: Attempted to fill non-existent hole.'
+            debugger
           @holeInformation = @_parent._holes[holeId]
     @_eventParent = @parent = parent
 
@@ -263,8 +266,7 @@ class Node
   ###
   Navigates to the _instance_ at instance ID path `path`.
   ###
-  navigate: (path, useNumericPath) ->
-    @walk path, useNumericPath: useNumericPath
+  navigate: (path, useNumericPath) -> @walk path, useNumericPath: useNumericPath
 
 
   ###
@@ -309,15 +311,7 @@ class Node
           switch hd.type
             when 'hole' then info.holes[hd.identifier]
             when 'subexpression'
-              # subId = @_makeSubexprId hd.identifier
-              # subId = 'group::' + hd.identifier # HACK :(
-              # info.subexpressions[subId]
               info.subexpressions[hd.identifier]
-
-        # console.log 'hd', hd
-        # console.log 'info', info
-        # console.log 'outerInfo', outerInfo
-
         if not outerInfo?
           return undefined
 
@@ -343,20 +337,17 @@ class Node
   Renders this node into text, recurring on its children.
   ###
   render: () ->
-    console.log 'render() not implemented'
-    # renderPiece = (piece) =>
-    #   switch piece.type
-    #     when 'literal' then piece.text
-    #     when 'hole'
-    #       if @childrenMap[identifier].isFilled
-    #       then do =>
-    #         do @childrenMap[identifier].render
-    #       else ('`' + group + '`')
-    #     when 'subexpression'
-    #       piece.expression.pieces.map renderPiece
-    # @template.pieces
-    #   .map renderPiece
-    #   .join ''
+    do helper = (tree = (do @flatten)) ->
+      _ (tree)
+        .reject type: 'action'
+        .map (elm) ->
+          switch elm.type
+            when 'literal' then elm.value
+            when 'hole'
+              if elm.isFilled
+              then helper elm.value
+              else "<#{elm.holeId}>"
+        .join ''
 
   ###
   children :: () -> [Node]
@@ -395,28 +386,62 @@ class Node
   HoleElement ::=
     type: 'hole'
     isFilled: Boolean
-    id: String
+    instanceId: String   # unique (within sequence) ID
+    holeId: String       # non-unique hole template ID
     value: [ReturnType]
+
+  ActionElement ::=
+    type: 'action'
+    display: String
+    onAction: () ->
 
   ###
   # TODO: should the `pushEmpty` functions be put in this structure?
   flatten: () ->
-    reduction = (info) -> (acc = [], pc) ->
-      switch pc.type
-        when 'literal'
-          acc.push {type: 'literal', value: pc.text}
-        when 'hole'
-          Array.prototype.push.apply acc, \
-            info.holes[pc.identifier].instances.map (instance) ->
-              type: 'hole'
-              isFilled: instance.isFilled
-              id: instance.holeInformation.id
-              value: if instance.isFilled then do instance.flatten else []
-        when 'subexpression'
-          Array.prototype.push.apply acc, \
+    scope = this
+    reduction = (info) ->
+      (acc = [], pc) ->
+        switch pc.type
+          when 'literal'
+            acc.push {type: 'literal', value: pc.text}
+          when 'hole'
+            Array.prototype.push.apply acc, \
+              info.holes[pc.identifier].instances.map (instance) ->
+                type: 'hole'
+                isFilled: instance.isFilled
+                holeId: instance.holeInformation.id
+                instanceId: instance.instanceId
+                value: if instance.isFilled then do instance.flatten else []
+            expandNode =
+              type: 'action'
+              display: '+'
+              onAction: () -> do info.holes[pc.identifier].pushEmpty
+            switch pc.quantifier
+              when 'kleene'
+                acc.push expandNode
+              when 'optional'
+                if info.holes[pc.identifier].instances.length is 0
+                  acc.push expandNode
+          when 'subexpression'
+            ## does this method have any benefit?
+            # recurHoles =
+            #   info.subexpressions[pc.identifier].instances.map (instance) ->
+            #     pc.expression.pieces.reduce (reduction instance), []
+            # Array.prototype.push.apply acc, (_.flatten recurHoles)
             info.subexpressions[pc.identifier].instances.map (instance) ->
-              pc.value.reduce (reduction instance), acc
-      return acc
+              pc.expression.pieces.reduce (reduction instance), acc
+            expandNode =
+              type: 'action'
+              display: '+'
+              onAction: () ->
+                do info.subexpressions[pc.identifier].pushEmpty
+            switch pc.quantifier
+              when 'kleene'
+                acc.push expandNode
+              when 'optional'
+                if info.subexpressions[pc.identifier].instances.length is 0
+                  acc.push expandNode
+        return acc
 
     @template.pieces.reduce (reduction @_instanceInfo), []
 
@@ -463,9 +488,8 @@ class Node
               quantifier: piece.quantifier
               subexpressionPath: subexprPath
           when 'subexpression'
-            # r = makeHoleInfo [subexprPath..., parentNode._makeSubexprId subexprIndex++]
-            r = makeHoleInfo [subexprPath..., piece.identifier]
-            piece.expression.pieces.reduce r
+            newSubPath = [subexprPath..., piece.identifier]
+            piece.expression.pieces.reduce (makeHoleInfo newSubPath), acc
         return acc
     @_holes = template.pieces.reduce (makeHoleInfo []), {}
 
@@ -481,7 +505,7 @@ class Node
     HoleInfo ::=
       instances: [Node]
       pushEmpty: () -> Node
-      node: () -> Node
+      lastInstance: () -> Node
 
     SubexprInfo ::=
       instances: [InstanceInfo]
@@ -495,365 +519,41 @@ class Node
               acc.holes = {}
             holeInfo =
               instances: []
-              pushEmpty: () ->
+              # set `quiet` to true to disable sending change event
+              pushEmpty: (quiet = false) ->
                 emptyNode = new Node parentNode, elm.identifier
                 pathString = [path..., @instances.length].join '.'
                 emptyNode.instanceId = "#{elm.identifier}::#{pathString}"
                 @instances.push emptyNode
                 parentNode.childrenMap[emptyNode.instanceId] = emptyNode
+                if not quiet
+                  parentNode.dispatchEvent 'changed'
                 emptyNode
-              node: () -> @instances[@instances.length - 1]
+              lastInstance: () -> @instances[@instances.length - 1]
 
             acc.holes[elm.identifier] = holeInfo
             acc.infoList.push {type: 'hole-info', value: holeInfo}
             if elm.quantifier is 'one'
-              do holeInfo.pushEmpty
+              holeInfo.pushEmpty(true)
           when 'subexpression'
             if not acc.subexpressions?
               acc.subexpressions = {}
-            # subId = parentNode._makeSubexprId Object.keys(acc.subexpressions).length
             subId = elm.identifier
             subExprInfo =
               instances: []
-              pushEmpty: () ->
+              # set `quiet` to true to disable sending change event
+              pushEmpty: (quiet = false) ->
                 instanceInfo = makeInstanceInfo elm.expression, [path..., subId, @instances.length]
                 @instances.push instanceInfo
+                if not quiet
+                  parentNode.dispatchEvent 'changed'
                 return instanceInfo
             acc.subexpressions[subId] = subExprInfo
             acc.infoList.push {type: 'subexpr-info', value: subExprInfo}
             if elm.quantifier is 'one'
-              do subExprInfo.pushEmpty
+              subExprInfo.pushEmpty(true)
         return acc
       expr.pieces.reduce reduction, {infoList: []}
-
-
-    # walk = (property, acc) -> (elm) ->
-    #   if _.isObject elm
-    #     recur = _.map (_.values elm), (walk property, acc)
-    #     if _.contains Object.keys(elm), property
-    #       acc.push elm[property]
-    #   return acc
-
-    # console.log (JSON.stringify ((walk 'instanceId', []) info), null, 2)
-
-
-
-
-
-
-    ###
-    MUTABLE, IN-ORDER sequence of literals, holes, and subexpressions
-     (anything that can be quantifier'd)
-    for hole and subexpression elements:
-     the `value` property is always an array, holding the instances of that
-     piece as `Node`s.
-    ###
-    # @pieces = template.pieces.map (pc) ->
-    #   switch pc.type
-    #     when 'literal'
-    #       pc
-    #     when 'hole'
-    #       type: 'hole'
-    #       value: []
-    #       quantifier: pc.quantifier
-    #       identifier: pc.identifier
-    #       group: pc.group
-    #     when 'subexpression'
-    #       type: 'subexpression'
-    #       value: []
-    #       quantifier: pc.quantifier
-    #       identifier: subexprIndex++
-    #       template: pc.expression
-
-
-    # @_holes = {}
-
-    # # Populate the `_holes` dictionary.
-    # holeIndex = 0
-    # exprIndex = 0
-    # makeHoleInfo = (subexprPath) =>
-    #   subexprIndex = 0
-    #   return (piece) =>
-    #     switch piece.type
-    #       when 'hole'
-    #         @_holes[piece.identifier] =
-    #           id: piece.identifier
-    #           group: piece.group
-    #           quantifier: piece.quantifier
-    #           sequenceIndex: exprIndex++
-    #           holeIndex: holeIndex++
-    #           subexpressionPath: subexprPath
-    #       when 'subexpression'
-    #         nextPath = [subexprPath..., subexprIndex++]
-    #         piece.expression.pieces.forEach (makeHoleInfo nextPath)
-    # @template.pieces.forEach (makeHoleInfo [])
-
-    # # Populate the `children` list and `childrenMap`.
-    # childCount = 0
-    # @children = []
-    # variadicChildrenMap = {}
-    # @childrenMap = _.mapValues @_holes, (v, k) =>
-    #   if v.quantifier is 'kleene'
-    #     ###
-    #     When working with a Kleene star quantifier, `childrenMap[<id>]` should
-    #      point to the youngest child.
-    #     The optional property `quantifiedChildren` maps a hole ID to an array
-    #      of children when a `Node` contains a quantified child.
-    #     ###
-
-    #     variadicId = ({__cloneNumber, holeInformation}) ->
-    #       "#{holeInformation.id}-#{__cloneNumber}"
-
-    #     child = new Node this, v.id
-    #     child.__cloneNumber = 0
-    #     child.variadicId = variadicId child
-    #     @children[childCount++] = child
-    #     variadicChildrenMap[child.variadicId] = child
-    #     if not @quantifiedChildren?
-    #       @quantifiedChildren = {}
-    #     @quantifiedChildren[v.id] = [child]
-    #     child.routeEvents this
-
-    #     # override `fill` to make a new empty sibling on fill
-    #     scope = this
-    #     child.fill = () ->
-    #       # to first call "super"
-    #       Node.prototype.fill.apply this, arguments
-    #       # and then make a new empty sibling to take this node's place.
-    #       # TODO: "if there is no empty node after this node"
-    #       sibling = new Node scope, @holeInformation.id
-    #       sibling.fill = @fill
-    #       sibling.__cloneNumber = @__cloneNumber + 1
-    #       sibling.variadicId = variadicId sibling
-    #       scope.children[childCount++] = sibling
-    #       scope.childrenMap[sibling.variadicId] = sibling
-    #       scope.childrenMap[@holeInformation.id] = sibling
-    #       scope.quantifiedChildren[@holeInformation.id].push sibling
-    #       @dispatchEvent 'changed'
-
-    #     # start a list of children at this variadic hole
-    #     return child
-    #   else
-    #     child = new Node this, v.id
-    #     @children[childCount++] = child
-    #     return child
-    # _.extend @childrenMap, variadicChildrenMap
-
-
-# class Node
-#   ###
-#   Node.prototype.constructor - generic constructor
-#     parent - the to-be-created Node's parent
-#     holeId - the id of the hole in the parent which the new Node will fill
-#     template - the syntactic template expression that the new node will follow
-#   ###
-#   constructor: (parent, holeId, template) ->
-#     @_eventListeners = {}
-
-#     Object.defineProperty this, 'parent',
-#       get: () -> @_parent
-#       set: (newValue) =>
-#         @_parent = newValue
-#         if @_parent?
-#           @holeInformation = @_parent._holes[holeId]
-#     @_eventParent = @parent = parent
-
-
-#     if template?
-#     then @_setTemplate template
-#     else
-#       @isFilled = false
-#       @template = null
-
-#   ###
-#   Node.makeRoot - creates a parentless Node, given only the template expression
-#   ###
-#   @makeRoot: (template) ->
-#     result = new Node()
-#     result._setTemplate template
-#     return result
-
-#   ###
-#   holeInformation: - {id: String,
-#                       group: String,
-#                       isVariadic: Boolean,
-#                       sequenceIndex: Integer
-#                       holeIndex: Integer} - dict of information about the hole
-#                                             that this node fills
-#   ###
-#   holeInformation: null
-
-#   ###
-#   fill :: Expression -> Node
-#   Replaces this node's template with the specified template expression.
-#   ###
-#   fill: (template) ->
-#     @_setTemplate template
-#     @dispatchEvent 'changed'
-#     return this
-
-#   ###
-#   walk :: Array, Object -> Node
-#         | Array, {endFn :: Node -> a, ...} -> a
-#   : Walks the tree described by this node, optionally mutating nodes along the
-#     way or mutating the found node.
-
-#   path - the numeric or id path to the desired node
-#   options
-#     useNumericPath - `true` if `path` argument is numeric
-#     endFn - procedure to apply on the node at `path` before returning,
-#             with type `(<node>) -> <return>`
-#     fold
-#       proc - procedure for folding, with type `(<accum>, <elm>) -> <accum>`
-#       acc - initial accumulator value for folding
-
-#   Returns the found `Node`, or the result of `options.endFn` on the found
-#     `Node`.
-#   ###
-#   walk: (path, options = {}) ->
-#     if path.length is 0
-#       if options.endFn?
-#       then options.endFn this
-#       else this
-#     else
-#       [hd, tl...] = path
-#       nextChild = do =>
-#         if options.useNumericPath
-#         then @_getNthChild hd
-#         else @_getChild hd
-
-#       # Check that such a child exists.
-#       if not nextChild?
-#         return null
-
-#       if options.fold?.proc?
-#       then options.fold.acc = options.fold.proc options.fold.acc, nextChild
-
-#       nextChild.walk tl, options
-
-#   navigate: (path, useNumericPath) ->
-#     @walk path, useNumericPath: useNumericPath
-
-#   ###
-#   render :: Unit -> String
-#   Renders this node into text, recurring on its children.
-#   ###
-#   render: () ->
-#     renderPiece = (piece) =>
-#       switch piece.type
-#         when 'literal' then piece.text
-#         when 'hole'
-#           if @childrenMap[identifier].isFilled
-#           then do =>
-#             do @childrenMap[identifier].render
-#           else ('`' + group + '`')
-#         when 'subexpression'
-#           piece.expression.pieces.map renderPiece
-#     @template.pieces
-#       .map renderPiece
-#       .join ''
-
-
-#   ## Event routing ##
-
-#   addEventListener: (kind, callback) ->
-#     if not @_eventListeners[kind]?
-#       @_eventListeners[kind] = []
-#     l = @_eventListeners[kind].push callback
-#     return () -> @_eventListeners[kind][l] = undefined
-
-#   dispatchEvent: (kind, details) =>
-#     @_eventListeners[kind]?.forEach (cb) -> cb? details
-#     @_eventParent?.dispatchEvent kind, details
-
-#   routeEvents: (parent) -> @_eventParent = parent
-
-#   ## Private methods ##
-
-#   _getChild: (id) -> @childrenMap[id]
-
-#   _getNthChild: (n) -> @children[n]
-
-#   _setTemplate: (template) ->
-#     if not template?
-#       console.log 'Node was supplied null template: ', @
-#       return
-
-#     @isFilled = true
-#     @template = template
-#     @_holes = {}
-
-#     # Populate the `_holes` dictionary.
-#     holeIndex = 0
-#     exprIndex = 0
-#     makeHoleInfo = (subexprPath) =>
-#       subexprIndex = 0
-#       return (piece) =>
-#         switch piece.type
-#           when 'hole'
-#             @_holes[piece.identifier] =
-#               id: piece.identifier
-#               group: piece.group
-#               quantifier: piece.quantifier
-#               sequenceIndex: exprIndex++
-#               holeIndex: holeIndex++
-#               subexpressionPath: subexprPath
-#           when 'subexpression'
-#             nextPath = [subexprPath..., subexprIndex++]
-#             piece.expression.pieces.forEach (makeHoleInfo nextPath)
-#     @template.pieces.forEach (makeHoleInfo [])
-
-#     # Populate the `children` list and `childrenMap`.
-#     childCount = 0
-#     @children = []
-#     variadicChildrenMap = {}
-#     @childrenMap = _.mapValues @_holes, (v, k) =>
-#       if v.quantifier is 'kleene'
-#         ###
-#         When working with a Kleene star quantifier, `childrenMap[<id>]` should
-#          point to the youngest child.
-#         The optional property `quantifiedChildren` maps a hole ID to an array
-#          of children when a `Node` contains a quantified child.
-#         ###
-
-#         variadicId = ({__cloneNumber, holeInformation}) ->
-#           "#{holeInformation.id}-#{__cloneNumber}"
-
-#         child = new Node this, v.id
-#         child.__cloneNumber = 0
-#         child.variadicId = variadicId child
-#         @children[childCount++] = child
-#         variadicChildrenMap[child.variadicId] = child
-#         if not @quantifiedChildren?
-#           @quantifiedChildren = {}
-#         @quantifiedChildren[v.id] = [child]
-#         child.routeEvents this
-
-#         # override `fill` to make a new empty sibling on fill
-#         scope = this
-#         child.fill = () ->
-#           # to first call "super"
-#           Node.prototype.fill.apply this, arguments
-#           # and then make a new empty sibling to take this node's place.
-#           # TODO: "if there is no empty node after this node"
-#           sibling = new Node scope, @holeInformation.id
-#           sibling.fill = @fill
-#           sibling.__cloneNumber = @__cloneNumber + 1
-#           sibling.variadicId = variadicId sibling
-#           scope.children[childCount++] = sibling
-#           scope.childrenMap[sibling.variadicId] = sibling
-#           scope.childrenMap[@holeInformation.id] = sibling
-#           scope.quantifiedChildren[@holeInformation.id].push sibling
-#           @dispatchEvent 'changed'
-
-#         # start a list of children at this variadic hole
-#         return child
-#       else
-#         child = new Node this, v.id
-#         @children[childCount++] = child
-#         return child
-#     _.extend @childrenMap, variadicChildrenMap
-
 
 module.exports =
   SyntaxTree: SyntaxTree

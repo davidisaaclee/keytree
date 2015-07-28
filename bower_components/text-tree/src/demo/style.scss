@@ -31,10 +31,6 @@ body {
 
 .node {
   display: inline-block;
-  // display: inline-flex;
-  // flex-direction: row;
-  // // align-content: flex-start;
-  // // align-items: center;
 
   margin: 2px 4px;
   padding: 7px 10px;
@@ -60,12 +56,6 @@ body {
   border: 2px solid black;
 }
 
-// .empty:after {
-//   content: '_';
-//   visibility: hidden;
-// }
-
-.selected > .node {
-  // border: 1px #888 solid;
+.selected {
   background-color: rgba(50, 200, 50, 0.2);
 }

@@ -13,7 +13,8 @@
     "gulp-sass": "^2.0.1"
   },
   "devDependencies": {
-    "lodash": "^3.10.0"
+    "lodash": "^3.10.0",
+    "web-component-tester": "^3.3.3"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

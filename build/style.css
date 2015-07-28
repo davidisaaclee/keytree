@@ -45,5 +45,10 @@ body {
     #container #app .active-node {
       background-color: rgba(255, 255, 255, 0.4);
       border: 1px solid green; }
+    #container #app .action {
+      background-color: rgba(255, 255, 255, 0.5);
+      border-radius: 1em; }
+    #container #app .action:active {
+      background-color: rgba(255, 255, 255, 0.8); }
     #container #app .empty {
       color: #666; }

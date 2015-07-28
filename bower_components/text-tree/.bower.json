@@ -25,13 +25,13 @@
     "web-component-tester": "*"
   },
   "homepage": "https://github.com/davidisaaclee/text-tree",
-  "_release": "4c4c2ff3a8",
+  "_release": "7c6085f4a7",
   "_resolution": {
     "type": "branch",
-    "branch": "no-parser",
-    "commit": "4c4c2ff3a84012c436ece3b1b767dd1cfc7ca7b8"
+    "branch": "master",
+    "commit": "7c6085f4a70cf9052afb9d18f4c7284a951ef337"
   },
   "_source": "git://github.com/davidisaaclee/text-tree.git",
-  "_target": "no-parser",
+  "_target": "*",
   "_originalSource": "davidisaaclee/text-tree"
 }

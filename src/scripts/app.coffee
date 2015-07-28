@@ -1,5 +1,6 @@
 _ = require 'lodash'
 match = require 'util/match'
+renameProperty = require 'util/renameProperty'
 {SyntaxTree, Node} = require 'Syntax'
 {Grammar, Expression, Piece, Literal, Hole, Subexpression} = require 'Grammar'
 # parseGrammar = (require 'parsers/grammar-shorthand').parse
@@ -27,19 +28,23 @@ class App
     @_flowerPicker = document.querySelector '#picker'
     @_textRoot = document.querySelector '#tree'
 
+    # Closure variables
+    isFlowerPickerActive = false
+
     preventDefault = (evt) -> do evt.preventDefault
 
     startFlowerPicker = (evt) =>
-      console.log 'startFlowerPicker'
+      isFlowerPickerActive = true
       @_flowerPicker.style['pointer-events'] = 'auto'
       pathToHole = evt.detail.idPath
-
       selectedRulesAsPetals =
         @_rulesToPetals \
           @syntaxTree.grammar, \
           [@syntaxTree.navigate(pathToHole).holeInformation.group]
       holeElement = evt.detail.tree.navigate pathToHole
-      nodeElement = holeElement.querySelector '.node'
+      if not holeElement?
+        debugger
+        evt.detail.tree.navigate pathToHole
 
       # FIXME: Getting the bounding client rect here seems to be buggy
       #   on Safari - pinch-zooming in the webpage changes the location
@@ -55,10 +60,10 @@ class App
       @_flowerPicker.start holeCenter
 
     endFlowerPicker = (evt) =>
-      console.log 'endFlowerPicker'
-      # do deactivateHole
-      @_flowerPicker.style['pointer-events'] = 'none'
-      @_flowerPicker.finish {x: evt.detail.x, y: evt.detail.y}
+      if isFlowerPickerActive
+        @_flowerPicker.style['pointer-events'] = 'none'
+        @_flowerPicker.finish {x: evt.detail.x, y: evt.detail.y}
+        isFlowerPickerActive = false
 
     onFlowerPickerSelect = (event) =>
       model = event.detail.value
@@ -66,79 +71,37 @@ class App
       @_activeHole?.nodeModel.fill expr
 
     @_textRoot.addEventListener 'requested-fill', startFlowerPicker
-    @_textRoot.addEventListener 'requested-fill', () ->
-      console.log 'requested-fill!'
-    # Polymer.Gestures.add @_textRoot, 'up', endFlowerPicker
+    Polymer.Gestures.add @_textRoot, 'up', endFlowerPicker
     @_flowerPicker.addEventListener 'selected', onFlowerPickerSelect
     Polymer.Base.setScrollDirection 'none', @_textRoot
     Polymer.Gestures.add @_flowerPicker, 'track', preventDefault
 
-  # newTreeFormat =
-  #   type: 'hole'
-  #   id: 'start'
-  #   isFilled: true
-  #   value: [
-  #     type: 'literal'
-  #     value: '(+ '
-  #    ,
-  #     type: 'hole'
-  #     id: 'randl'
-  #     isFilled: true
-  #     classes: 'special-node'
-  #     value: [
-  #       type: 'literal'
-  #       value: '42'
-  #     ]
-  #    ,
-  #     type: 'hole'
-  #     id: 'randr'
-  #     isFilled: false
-  #     value: null
-  #    ,
-  #     type: 'literal'
-  #     value: ')'
-  #   ]
-
   loadState: (syntaxTree) ->
-    syntaxTreeToTextTree = (st) ->
-      (do st.flatten)[0] # we don't care about _baseNode
-      # helper = (node, nodeId) ->
-      #   type: 'hole'
-      #   id: if node.holeInformation then node.holeInformation.id else nodeId
-      #   isFilled: node.isFilled
-      #   value: do ->
-      #     pieceMap = (acc, piece, index) ->
-      #       switch piece.type
-      #         when 'literal'
-      #           acc.push
-      #             type: 'literal'
-      #             value: piece.text
-      #         when 'hole'
-      #           # TODO: quantifiers
-      #           childNode = node.childrenMap[piece.identifier]
-      #           toPush =
-      #             if childNode.isFilled
-      #             then helper childNode
-      #             else
-      #               type: 'hole'
-      #               id: piece.identifier
-      #               isFilled: false
-      #               value: null
-      #           acc.push toPush
-      #         when 'subexpression'
-      #           acc.push (piece.expression.pieces.map pieceMap)...
-      #       return acc
-      #     result = []
-      #     node.template?.pieces.reduce pieceMap, result
-      #     return result
+    ###
+    TextTreeModel ::= TextTreeHoleModel
+                    | TextTreeLiteralModel
 
-        # if node.isFilled
-        #   type: 'branch'
-        #   template: node.template.templateString().replace ///\t///g, '  '
-        #   children: node.children.map helper
-        # else
-        #   type: 'empty'
-      # helper st.root, 'root'
+    TextTreeHoleModel ::=
+      type: 'hole'
+      id: String
+      placeholder: String
+      isFilled: Boolean
+      value: [TextTreeModel]
+
+    TextTreeLiteralModel ::=
+      type: 'literal'
+      value: String
+    ###
+    syntaxTreeToTextTree = (st) ->
+      toRename =
+        'instanceId': 'id'
+        'holeId': 'placeholder'
+      recursiveOptions =
+        enabled: true
+        descendOn: ['value']
+        descendOnArrays: true
+      (renameProperty toRename, recursiveOptions) (do st.flatten)
+
     updateView = () =>
       @_textRoot.treeModel = syntaxTreeToTextTree @syntaxTree
       @_textRoot.dispatchEvent (new CustomEvent 'changed')
@@ -147,21 +110,20 @@ class App
     do updateView
 
   setActiveHole: (path, useNumericPath) ->
-    # if @_activeHole?
-    #   Polymer.dom(@_activeHole.nodeElement).classList.remove 'active-node'
+    if @_activeHole?
+      Polymer.dom(@_activeHole.nodeElement).classList.remove 'active-node'
 
-    # nodeModel = @syntaxTree.navigate path, useNumericPath
-    # if nodeModel?
-    #   @_activeHole =
-    #     path: path
-    #     nodeModel: nodeModel
-    #     nodeElement:
-    #       @_textRoot.navigate(path, useNumericPath).querySelector '.node'
-    #   Polymer.dom(@_activeHole.nodeElement).classList.add 'active-node'
-    # else
-    #   @_activeHole = null
+    nodeModel = @syntaxTree.navigate path, useNumericPath
+    if nodeModel?
+      @_activeHole =
+        path: path
+        nodeModel: nodeModel
+        nodeElement: @_textRoot.navigate path, useNumericPath
+      Polymer.dom(@_activeHole.nodeElement).classList.add 'active-node'
+    else
+      @_activeHole = null
 
-    # return nodeModel
+    return nodeModel
 
   _rulesToPetals: (grammar, groups) ->
     rules = grammar.productions
@@ -193,7 +155,6 @@ class App
             else
               display: (model) -> model.display()
           _.extend custom, common
-    console.log '_rulesToPetals', result
     if result.length is 1
     then result[0].children
     else result
@@ -221,16 +182,16 @@ window.addEventListener 'WebComponentsReady', () ->
   mock.rules =
     _.mapValues litRules, (vo) ->
       _.mapValues vo, (vi) ->
-        parseHelper = (expr) ->
-          switch expr.type
+        parseHelper = ({type, id, quantifier, value}) ->
+          switch type
             when 'expression'
-              new Expression expr.value.map parseHelper
+              new Expression value.map parseHelper
             when 'literal'
-              new Literal expr.value, expr.quantifier
+              new Literal value, quantifier
             when 'hole'
-              new Hole expr.id, expr.value, expr.quantifier
+              new Hole id, value, quantifier
             when 'subexpression'
-              new Subexpression (parseHelper expr.value), expr.quantifier
+              new Subexpression (new Expression value.map parseHelper), quantifier, id
         parseHelper parseGrammar vi
 
   mock.grammar = new Grammar mock.rules
@@ -286,5 +247,5 @@ window.addEventListener 'WebComponentsReady', () ->
 
   app = new App {syntaxTree: mock.syntaxTree}
 
-  # Polymer.Gestures.add (document.querySelector '#render'), 'up', (evt) ->
-  #   console.log app.syntaxTree.root.render()
+  Polymer.Gestures.add (document.querySelector '#render'), 'up', (evt) ->
+    alert app.syntaxTree.root.render()

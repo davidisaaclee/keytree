@@ -1,9 +1,11 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var App, Expression, Grammar, Hole, Literal, Node, Piece, Subexpression, SyntaxTree, _, match, parseGrammar, ref, ref1;
+var App, Expression, Grammar, Hole, Literal, Node, Piece, Subexpression, SyntaxTree, _, match, parseGrammar, ref, ref1, renameProperty;
 
 _ = require('lodash');
 
 match = require('util/match');
+
+renameProperty = require('util/renameProperty');
 
 ref = require('Syntax'), SyntaxTree = ref.SyntaxTree, Node = ref.Node;
 
@@ -30,21 +32,25 @@ App = (function() {
   }
 
   App.prototype.setup = function() {
-    var endFlowerPicker, onFlowerPickerSelect, preventDefault, startFlowerPicker;
+    var endFlowerPicker, isFlowerPickerActive, onFlowerPickerSelect, preventDefault, startFlowerPicker;
     this._flowerPicker = document.querySelector('#picker');
     this._textRoot = document.querySelector('#tree');
+    isFlowerPickerActive = false;
     preventDefault = function(evt) {
       return evt.preventDefault();
     };
     startFlowerPicker = (function(_this) {
       return function(evt) {
-        var holeCenter, holeElement, holeRect, nodeElement, pathToHole, selectedRulesAsPetals;
-        console.log('startFlowerPicker');
+        var holeCenter, holeElement, holeRect, pathToHole, selectedRulesAsPetals;
+        isFlowerPickerActive = true;
         _this._flowerPicker.style['pointer-events'] = 'auto';
         pathToHole = evt.detail.idPath;
         selectedRulesAsPetals = _this._rulesToPetals(_this.syntaxTree.grammar, [_this.syntaxTree.navigate(pathToHole).holeInformation.group]);
         holeElement = evt.detail.tree.navigate(pathToHole);
-        nodeElement = holeElement.querySelector('.node');
+        if (holeElement == null) {
+          debugger;
+          evt.detail.tree.navigate(pathToHole);
+        }
         holeRect = holeElement.getBoundingClientRect();
         holeCenter = {
           x: holeRect.left + holeRect.width / 2,
@@ -57,12 +63,14 @@ App = (function() {
     })(this);
     endFlowerPicker = (function(_this) {
       return function(evt) {
-        console.log('endFlowerPicker');
-        _this._flowerPicker.style['pointer-events'] = 'none';
-        return _this._flowerPicker.finish({
-          x: evt.detail.x,
-          y: evt.detail.y
-        });
+        if (isFlowerPickerActive) {
+          _this._flowerPicker.style['pointer-events'] = 'none';
+          _this._flowerPicker.finish({
+            x: evt.detail.x,
+            y: evt.detail.y
+          });
+          return isFlowerPickerActive = false;
+        }
       };
     })(this);
     onFlowerPickerSelect = (function(_this) {
@@ -74,18 +82,42 @@ App = (function() {
       };
     })(this);
     this._textRoot.addEventListener('requested-fill', startFlowerPicker);
-    this._textRoot.addEventListener('requested-fill', function() {
-      return console.log('requested-fill!');
-    });
+    Polymer.Gestures.add(this._textRoot, 'up', endFlowerPicker);
     this._flowerPicker.addEventListener('selected', onFlowerPickerSelect);
     Polymer.Base.setScrollDirection('none', this._textRoot);
     return Polymer.Gestures.add(this._flowerPicker, 'track', preventDefault);
   };
 
   App.prototype.loadState = function(syntaxTree) {
+
+    /*
+    TextTreeModel ::= TextTreeHoleModel
+                    | TextTreeLiteralModel
+    
+    TextTreeHoleModel ::=
+      type: 'hole'
+      id: String
+      placeholder: String
+      isFilled: Boolean
+      value: [TextTreeModel]
+    
+    TextTreeLiteralModel ::=
+      type: 'literal'
+      value: String
+     */
     var syntaxTreeToTextTree, updateView;
     syntaxTreeToTextTree = function(st) {
-      return (st.flatten())[0];
+      var recursiveOptions, toRename;
+      toRename = {
+        'instanceId': 'id',
+        'holeId': 'placeholder'
+      };
+      recursiveOptions = {
+        enabled: true,
+        descendOn: ['value'],
+        descendOnArrays: true
+      };
+      return (renameProperty(toRename, recursiveOptions))(st.flatten());
     };
     updateView = (function(_this) {
       return function() {
@@ -97,7 +129,24 @@ App = (function() {
     return updateView();
   };
 
-  App.prototype.setActiveHole = function(path, useNumericPath) {};
+  App.prototype.setActiveHole = function(path, useNumericPath) {
+    var nodeModel;
+    if (this._activeHole != null) {
+      Polymer.dom(this._activeHole.nodeElement).classList.remove('active-node');
+    }
+    nodeModel = this.syntaxTree.navigate(path, useNumericPath);
+    if (nodeModel != null) {
+      this._activeHole = {
+        path: path,
+        nodeModel: nodeModel,
+        nodeElement: this._textRoot.navigate(path, useNumericPath)
+      };
+      Polymer.dom(this._activeHole.nodeElement).classList.add('active-node');
+    } else {
+      this._activeHole = null;
+    }
+    return nodeModel;
+  };
 
   App.prototype._rulesToPetals = function(grammar, groups) {
     var result, rules;
@@ -144,7 +193,6 @@ App = (function() {
         })
       };
     });
-    console.log('_rulesToPetals', result);
     if (result.length === 1) {
       return result[0].children;
     } else {
@@ -182,16 +230,18 @@ window.addEventListener('WebComponentsReady', function() {
   mock.rules = _.mapValues(litRules, function(vo) {
     return _.mapValues(vo, function(vi) {
       var parseHelper;
-      parseHelper = function(expr) {
-        switch (expr.type) {
+      parseHelper = function(arg) {
+        var id, quantifier, type, value;
+        type = arg.type, id = arg.id, quantifier = arg.quantifier, value = arg.value;
+        switch (type) {
           case 'expression':
-            return new Expression(expr.value.map(parseHelper));
+            return new Expression(value.map(parseHelper));
           case 'literal':
-            return new Literal(expr.value, expr.quantifier);
+            return new Literal(value, quantifier);
           case 'hole':
-            return new Hole(expr.id, expr.value, expr.quantifier);
+            return new Hole(id, value, quantifier);
           case 'subexpression':
-            return new Subexpression(parseHelper(expr.value), expr.quantifier);
+            return new Subexpression(new Expression(value.map(parseHelper)), quantifier, id);
         }
       };
       return parseHelper(parseGrammar(vi));
@@ -200,13 +250,16 @@ window.addEventListener('WebComponentsReady', function() {
   mock.grammar = new Grammar(mock.rules);
   mock.syntaxTree = new SyntaxTree(mock.grammar, 'NE');
   startNode = mock.syntaxTree.root;
-  return app = new App({
+  app = new App({
     syntaxTree: mock.syntaxTree
+  });
+  return Polymer.Gestures.add(document.querySelector('#render'), 'up', function(evt) {
+    return alert(app.syntaxTree.root.render());
   });
 });
 
 
-},{"Grammar":3,"Syntax":4,"lodash":2,"parsers/grammar-new":5,"util/match":6}],2:[function(require,module,exports){
+},{"Grammar":3,"Syntax":4,"lodash":2,"parsers/grammar-new":5,"util/match":6,"util/renameProperty":8}],2:[function(require,module,exports){
 (function (global){
 /**
  * @license
@@ -12932,6 +12985,10 @@ Node = (function() {
         return function(newValue) {
           _this._parent = newValue;
           if (_this._parent != null) {
+            if (_this._parent._holes[holeId] == null) {
+              console.log('ERROR: Attempted to fill non-existent hole.');
+              debugger;
+            }
             return _this.holeInformation = _this._parent._holes[holeId];
           }
         };
@@ -13133,7 +13190,23 @@ Node = (function() {
    */
 
   Node.prototype.render = function() {
-    return console.log('render() not implemented');
+    var helper;
+    return (helper = function(tree) {
+      return _(tree).reject({
+        type: 'action'
+      }).map(function(elm) {
+        switch (elm.type) {
+          case 'literal':
+            return elm.value;
+          case 'hole':
+            if (elm.isFilled) {
+              return helper(elm.value);
+            } else {
+              return "<" + elm.holeId + ">";
+            }
+        }
+      }).join('');
+    })(this.flatten());
   };
 
 
@@ -13183,14 +13256,22 @@ Node = (function() {
   HoleElement ::=
     type: 'hole'
     isFilled: Boolean
-    id: String
+    instanceId: String   # unique (within sequence) ID
+    holeId: String       # non-unique hole template ID
     value: [ReturnType]
+  
+  ActionElement ::=
+    type: 'action'
+    display: String
+    onAction: () ->
    */
 
   Node.prototype.flatten = function() {
-    var reduction;
+    var reduction, scope;
+    scope = this;
     reduction = function(info) {
       return function(acc, pc) {
+        var expandNode;
         if (acc == null) {
           acc = [];
         }
@@ -13206,15 +13287,48 @@ Node = (function() {
               return {
                 type: 'hole',
                 isFilled: instance.isFilled,
-                id: instance.holeInformation.id,
+                holeId: instance.holeInformation.id,
+                instanceId: instance.instanceId,
                 value: instance.isFilled ? instance.flatten() : []
               };
             }));
+            expandNode = {
+              type: 'action',
+              display: '+',
+              onAction: function() {
+                return info.holes[pc.identifier].pushEmpty();
+              }
+            };
+            switch (pc.quantifier) {
+              case 'kleene':
+                acc.push(expandNode);
+                break;
+              case 'optional':
+                if (info.holes[pc.identifier].instances.length === 0) {
+                  acc.push(expandNode);
+                }
+            }
             break;
           case 'subexpression':
-            Array.prototype.push.apply(acc, info.subexpressions[pc.identifier].instances.map(function(instance) {
-              return pc.value.reduce(reduction(instance), acc);
-            }));
+            info.subexpressions[pc.identifier].instances.map(function(instance) {
+              return pc.expression.pieces.reduce(reduction(instance), acc);
+            });
+            expandNode = {
+              type: 'action',
+              display: '+',
+              onAction: function() {
+                return info.subexpressions[pc.identifier].pushEmpty();
+              }
+            };
+            switch (pc.quantifier) {
+              case 'kleene':
+                acc.push(expandNode);
+                break;
+              case 'optional':
+                if (info.subexpressions[pc.identifier].instances.length === 0) {
+                  acc.push(expandNode);
+                }
+            }
         }
         return acc;
       };
@@ -13274,7 +13388,7 @@ Node = (function() {
       var subexprIndex;
       subexprIndex = 0;
       return function(acc, piece) {
-        var r;
+        var newSubPath;
         switch (piece.type) {
           case 'hole':
             acc[piece.identifier] = {
@@ -13285,8 +13399,8 @@ Node = (function() {
             };
             break;
           case 'subexpression':
-            r = makeHoleInfo(slice.call(subexprPath).concat([piece.identifier]));
-            piece.expression.pieces.reduce(r);
+            newSubPath = slice.call(subexprPath).concat([piece.identifier]);
+            piece.expression.pieces.reduce(makeHoleInfo(newSubPath), acc);
         }
         return acc;
       };
@@ -13305,7 +13419,7 @@ Node = (function() {
     HoleInfo ::=
       instances: [Node]
       pushEmpty: () -> Node
-      node: () -> Node
+      lastInstance: () -> Node
     
     SubexprInfo ::=
       instances: [InstanceInfo]
@@ -13322,16 +13436,22 @@ Node = (function() {
             }
             holeInfo = {
               instances: [],
-              pushEmpty: function() {
+              pushEmpty: function(quiet) {
                 var emptyNode, pathString;
+                if (quiet == null) {
+                  quiet = false;
+                }
                 emptyNode = new Node(parentNode, elm.identifier);
                 pathString = slice.call(path).concat([this.instances.length]).join('.');
                 emptyNode.instanceId = elm.identifier + "::" + pathString;
                 this.instances.push(emptyNode);
                 parentNode.childrenMap[emptyNode.instanceId] = emptyNode;
+                if (!quiet) {
+                  parentNode.dispatchEvent('changed');
+                }
                 return emptyNode;
               },
-              node: function() {
+              lastInstance: function() {
                 return this.instances[this.instances.length - 1];
               }
             };
@@ -13341,7 +13461,7 @@ Node = (function() {
               value: holeInfo
             });
             if (elm.quantifier === 'one') {
-              holeInfo.pushEmpty();
+              holeInfo.pushEmpty(true);
             }
             break;
           case 'subexpression':
@@ -13351,10 +13471,16 @@ Node = (function() {
             subId = elm.identifier;
             subExprInfo = {
               instances: [],
-              pushEmpty: function() {
+              pushEmpty: function(quiet) {
                 var instanceInfo;
+                if (quiet == null) {
+                  quiet = false;
+                }
                 instanceInfo = makeInstanceInfo(elm.expression, slice.call(path).concat([subId], [this.instances.length]));
                 this.instances.push(instanceInfo);
+                if (!quiet) {
+                  parentNode.dispatchEvent('changed');
+                }
                 return instanceInfo;
               }
             };
@@ -13364,7 +13490,7 @@ Node = (function() {
               value: subExprInfo
             });
             if (elm.quantifier === 'one') {
-              subExprInfo.pushEmpty();
+              subExprInfo.pushEmpty(true);
             }
         }
         return acc;
@@ -13373,14 +13499,6 @@ Node = (function() {
         infoList: []
       });
     })(template, []);
-
-    /*
-    MUTABLE, IN-ORDER sequence of literals, holes, and subexpressions
-     (anything that can be quantifier'd)
-    for hole and subexpression elements:
-     the `value` property is always an array, holding the instances of that
-     piece as `Node`s.
-     */
   };
 
   return Node;
@@ -14163,7 +14281,45 @@ Function.prototype.property = function(prop, desc) {
 };
 
 
-},{}]},{},[1])
+},{}],8:[function(require,module,exports){
+var _, renameProperty;
+
+_ = require('lodash');
+
+renameProperty = function(replacements, recursive) {
+  var r;
+  return r = function(obj) {
+    if (_.isArray(obj)) {
+      if ((recursive != null ? recursive.descendOnArrays : void 0) != null) {
+        return _.map(obj, r);
+      } else {
+        return obj;
+      }
+    }
+    obj = _.mapKeys(obj, function(value, key) {
+      if (replacements[key] != null) {
+        return replacements[key];
+      } else {
+        return key;
+      }
+    });
+    if (recursive != null ? recursive.enabled : void 0) {
+      obj = _.mapValues(obj, function(value, key) {
+        if ((_.contains(recursive.descendOn, key)) && (_.isObject(value))) {
+          return r(value);
+        } else {
+          return value;
+        }
+      });
+    }
+    return obj;
+  };
+};
+
+module.exports = renameProperty;
+
+
+},{"lodash":2}]},{},[1])
 
 
 //# sourceMappingURL=app.js.map

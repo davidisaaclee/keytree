@@ -4,6 +4,7 @@ var gulp       = require('gulp');
 var sass       = require('gulp-sass');
 var coffeeify  = require('gulp-coffeeify');
 var jade       = require('gulp-jade');
+require('web-component-tester').gulp.init(gulp);
 
 
 var options = {};
@@ -22,7 +23,7 @@ options['coffee'] = {
 options['copy'] = {
   src: './src/**/*.js',
   dst: './build'
-}
+};
 
 options['sass'] = {
   src: './src/**/*.scss',
@@ -37,10 +38,21 @@ options['jade'] = {
   }
 };
 
+options['build-tests'] = {
+  scripts: {
+    src: './src/test/**/*.coffee',
+    dst: './build/test'
+  },
+  markup: {
+    src: './src/test/**/*.jade',
+    dst: './build/test'
+  }
+};
+
 
 gulp.task('default', ['build', 'watch']);
-
 gulp.task('build', ['copy', 'coffee', 'jade', 'sass']);
+gulp.task('test', ['build-tests', 'test:local']);
 
 gulp.task('coffee', function () {
   return gulp.src(options.coffee.src)
@@ -70,4 +82,18 @@ gulp.task('watch', function () {
   gulp.watch(options.coffee.src, ['coffee']);
   gulp.watch(options.sass.src, ['sass']);
   gulp.watch(options.jade.src, ['jade']);
+});
+
+gulp.task('build-tests', ['build-tests-scripts', 'build-tests-markup']);
+
+gulp.task('build-tests-scripts', function () {
+  return gulp.src(options['build-tests'].scripts.src)
+    .pipe(coffeeify())
+    .pipe(gulp.dest(options['build-tests'].scripts.dst));
+});
+
+gulp.task('build-tests-markup', function () {
+  return gulp.src(options['build-tests'].markup.src)
+    .pipe(jade(options['build-tests'].markup.src))
+    .pipe(gulp.dest(options['build-tests'].markup.dst));
 });
