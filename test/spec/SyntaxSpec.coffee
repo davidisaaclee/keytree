@@ -33,7 +33,6 @@ describe 'syntax trees', () ->
               when 'hole'
                 new Hole id, value, quantifier
               when 'subexpression'
-                # new Subexpression (parseHelper value), quantifier, id
                 new Subexpression (new Expression value.map parseHelper), quantifier, id
           parseHelper parseGrammar vi
     @grammar = new Grammar @rules

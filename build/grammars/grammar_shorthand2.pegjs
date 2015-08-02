@@ -71,6 +71,12 @@ hole =
     return wrap('hole', group, id);
   }
 
+input =
+  "<" id:identifier ":\\" pattern:identifier ">"
+  {
+    return wrap('input', pattern, id);
+  }
+
 // TODO: add nesting unique IDs for groups
 grouping =
   "(" expr:expression ")"

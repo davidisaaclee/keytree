@@ -1,5 +1,5 @@
 body {
-  background-color: #646464; }
+  background-color: #b45a5a; }
 
 #container {
   display: flex;
@@ -43,8 +43,7 @@ body {
       #container #app .node span {
         vertical-align: middle; }
     #container #app .active-node {
-      background-color: rgba(255, 255, 255, 0.4);
-      border: 1px solid green; }
+      background-color: rgba(255, 255, 255, 0.4); }
     #container #app .action {
       background-color: rgba(255, 255, 255, 0.5);
       border-radius: 1em; }

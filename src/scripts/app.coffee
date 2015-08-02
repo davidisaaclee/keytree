@@ -2,7 +2,7 @@ _ = require 'lodash'
 match = require 'util/match'
 renameProperty = require 'util/renameProperty'
 {SyntaxTree, Node} = require 'Syntax'
-{Grammar, Expression, Piece, Literal, Hole, Subexpression} = require 'Grammar'
+{Grammar, Expression, Piece, Literal, Hole, Input, Subexpression} = require 'Grammar'
 # parseGrammar = (require 'parsers/grammar-shorthand').parse
 parseGrammar = (require 'parsers/grammar-new').parse
 
@@ -171,13 +171,29 @@ window.addEventListener 'WebComponentsReady', () ->
       'list-lit': '"[" (<hd:NE> (", " <tl:NE>)*)? "]"'
       # 'variable': '"(box " <identifier:\\[a-z]+> ")"'
     'N':
-      'digits': '"digit placeholder"'
-      # 'digits': '<digits:\\[0-9]+>'
+      # 'digits': '"digit placeholder"'
+      'digits': '<digits:\\numbers>'
     'A':
       '+': '"+"'
       '-': '"-"'
       '*': '"*"'
       '/': '"/"'
+    # 'UNION': [ 'NE', 'N' ] # TODO
+
+  koffeeRules =
+    START:
+      start: '<start:BLOCK>'
+    BLOCK:
+      block: '(<statement:E> "\n")*'
+    E:
+      app: '<function:E> " " <arg:E> (", " <args:E>)*'
+      doapp: '"do " <function:E>'
+      assign: '<id:ID> " = " <expr:E>'
+      func: '"(" (<parameter:ID> (", " <parameters:ID>)*)? ") -> " <body:BLOCK>'
+      ident: '<id:ID>'
+    ID:
+      # ident: '<identifier:\[a-z]i+>'
+      ident: '"placeholder"'
   mock = {}
   mock.rules =
     _.mapValues litRules, (vo) ->
@@ -190,12 +206,15 @@ window.addEventListener 'WebComponentsReady', () ->
               new Literal value, quantifier
             when 'hole'
               new Hole id, value, quantifier
+            when 'input'
+              new Input id, value, quantifier
             when 'subexpression'
-              new Subexpression (new Expression value.map parseHelper), quantifier, id
+              innerExpr = new Expression value.map parseHelper
+              new Subexpression innerExpr, quantifier, id
         parseHelper parseGrammar vi
 
   mock.grammar = new Grammar mock.rules
-  mock.syntaxTree = new SyntaxTree mock.grammar, 'NE'
+  mock.syntaxTree = new SyntaxTree mock.grammar, 'START'
 
   startNode = mock.syntaxTree.root
 

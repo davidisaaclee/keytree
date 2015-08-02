@@ -62,6 +62,13 @@ class Hole extends Piece
 
   display: () -> "<#{@identifier}:#{@group}>"
 
+class Input extends Piece
+  constructor: (@identifier, @pattern, @quantifier) ->
+    @type = 'input'
+    if not @quantifier? then @quantifier = 'one'
+
+  display: () -> "<#{@identifier}:#{@pattern}"
+
 class Subexpression extends Piece
   constructor: (@expression, @quantifier, @identifier) ->
     @type = 'subexpression'
@@ -76,4 +83,5 @@ module.exports =
   Piece: Piece
   Literal: Literal
   Hole: Hole
+  Input: Input
   Subexpression: Subexpression
