@@ -20,13 +20,13 @@ A build attempting to maximize features and lack of bugs can be demo'd at
 1. Clone the repository.
 2. Install all dependencies.
 
-
+    ```
     $ npm install
     $ bower install
-
+    ```
 3. Build via `gulp`.
 
-
+    ```
     $ gulp build
-
+    ```
 4. Serve from base directory, and launch from `<server>/build/index.html`.
