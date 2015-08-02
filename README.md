@@ -13,7 +13,7 @@ allows rapid creation of source code on touchscreen devices, free of syntax erro
 ## Try
 
 A build attempting to maximize features and lack of bugs can be demo'd at
-[davidisaaclee.github.io/keytree](davidisaaclee.github.io/keytree).
+[https://davidisaaclee.github.io/keytree](https://davidisaaclee.github.io/keytree).
 
 ## Build
 
