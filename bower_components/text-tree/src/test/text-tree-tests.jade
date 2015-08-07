@@ -1,0 +1,14 @@
+doctype html
+html(lang='en')
+  head
+    meta(charset="utf-8")
+    meta(name="viewport", content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes")
+    title text-tree demo
+    script(src="../../../../webcomponentsjs/webcomponents.min.js")
+    script(src="../../../../web-component-tester/browser.js")
+
+    link(rel="import", href="../text-root.html")
+    link(rel="import", href="../text-tree.html")
+  body
+    text-root#root
+    script(src="text-tree-tests.js")
