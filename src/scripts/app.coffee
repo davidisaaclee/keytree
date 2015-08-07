@@ -22,7 +22,7 @@ class App
   constructor: ({@syntaxTree}) ->
     do @setup
     @loadState @syntaxTree
-    setTimeout () => @setActiveHole []
+    setTimeout () => @setActiveHole ['start::0']
 
   setup: () ->
     @_flowerPicker = document.querySelector '#picker'
@@ -68,6 +68,7 @@ class App
     onFlowerPickerSelect = (event) =>
       model = event.detail.value
       expr = @syntaxTree.grammar.makeExpression model.group, model.identifier, model.data
+      console.log expr
       @_activeHole?.nodeModel.fill expr
 
     @_textRoot.addEventListener 'requested-fill', startFlowerPicker
@@ -77,6 +78,7 @@ class App
     Polymer.Gestures.add @_flowerPicker, 'track', preventDefault
 
   loadState: (syntaxTree) ->
+    @syntaxTree = syntaxTree
     ###
     TextTreeModel ::= TextTreeHoleModel
                     | TextTreeLiteralModel
@@ -93,6 +95,7 @@ class App
       value: String
     ###
     syntaxTreeToTextTree = (st) ->
+      # console.log st.flatten()
       toRename =
         'instanceId': 'id'
         'holeId': 'placeholder'
@@ -110,6 +113,7 @@ class App
     do updateView
 
   setActiveHole: (path, useNumericPath) ->
+    console.log 'setActiveHole', arguments...
     if @_activeHole?
       Polymer.dom(@_activeHole.nodeElement).classList.remove 'active-node'
 
@@ -143,8 +147,7 @@ class App
               data: data
               template: model
           needsInput =
-            _.any rules[group][innerKey].symbols, (sym) ->
-              sym.constructor.name is 'Regex'
+            _.any rules[group][innerKey].pieces, type: 'input'
           custom =
             if needsInput
               type: 'input'
@@ -169,102 +172,68 @@ window.addEventListener 'WebComponentsReady', () ->
       'arith-op': '"(arith " <rator:A> "\n\t" <randl:NE> "\n\t" <randr:NE> ")"'
       'list': '"(list " <element:NE>* ")"'
       'list-lit': '"[" (<hd:NE> (", " <tl:NE>)*)? "]"'
-      # 'variable': '"(box " <identifier:\\[a-z]+> ")"'
+      'variable': '<identifier:\\any>'
     'N':
       # 'digits': '"digit placeholder"'
       'digits': '<digits:\\numbers>'
     'A':
-      '+': '"+"'
-      '-': '"-"'
-      '*': '"*"'
-      '/': '"/"'
+      'add': '"+"'
+      'subtract': '"-"'
+      'multiply': '"*"'
+      'divid': '"/"'
     # 'UNION': [ 'NE', 'N' ] # TODO
 
-  koffeeRules =
-    START:
-      start: '<start:BLOCK>'
-    BLOCK:
-      block: '(<statement:E> "\n")*'
-    E:
-      app: '<function:E> " " <arg:E> (", " <args:E>)*'
-      doapp: '"do " <function:E>'
-      assign: '<id:ID> " = " <expr:E>'
-      func: '"(" (<parameter:ID> (", " <parameters:ID>)*)? ") -> " <body:BLOCK>'
-      ident: '<id:ID>'
-    ID:
-      # ident: '<identifier:\[a-z]i+>'
-      ident: '"placeholder"'
-  mock = {}
-  mock.rules =
-    _.mapValues litRules, (vo) ->
-      _.mapValues vo, (vi) ->
-        parseHelper = ({type, id, quantifier, value}) ->
-          switch type
-            when 'expression'
-              new Expression value.map parseHelper
-            when 'literal'
-              new Literal value, quantifier
-            when 'hole'
-              new Hole id, value, quantifier
-            when 'input'
-              new Input id, value, quantifier
-            when 'subexpression'
-              innerExpr = new Expression value.map parseHelper
-              new Subexpression innerExpr, quantifier, id
-        parseHelper parseGrammar vi
-
-  mock.grammar = new Grammar mock.rules
-  mock.syntaxTree = new SyntaxTree mock.grammar, 'START'
-
-  startNode = mock.syntaxTree.root
-
-  # arithOpExpr = mock.grammar.makeExpression 'NE', 'arith-op'
-  # child = new Node mock.syntaxTree.root, 'start', arithOpExpr
-
-  # numNode = Node.makeRoot (mock.grammar.makeSequence 'NE', 'num-lit')
-  # arithNode = Node.makeRoot (mock.grammar.makeExpression 'NE', 'arith-op')
-  # listNode = Node.makeRoot (mock.grammar.makeSequence 'NE', 'list')
+  # koffeeRules =
+  #   START:
+  #     start: '<start:BLOCK>'
+  #   BLOCK:
+  #     block: '(<statement:E> "\n")*'
+  #   E:
+  #     app: '<function:E> " " <arg:E> (", " <args:E>)*'
+  #     doapp: '"do " <function:E>'
+  #     assign: '<id:ID> " = " <expr:E>'
+  #     func: '"(" (<parameter:ID> (", " <parameters:ID>)*)? ") -> " <body:BLOCK>'
+  #     ident: '<id:ID>'
+  #   ID:
+  #     # ident: '<identifier:\[a-z]i+>'
+  #     ident: '"placeholder"'
 
 
-  # listLit = mock.grammar.makeExpression 'NE', 'list-lit'
-  # mock.syntaxTree
-  #   .navigate [0], true
-  #   .fill listLit
+  grammarText = document.querySelector '#grammarText'
+  setGrammar = document.querySelector '#setGrammar'
+  app = null
 
-  # number = mock.grammar.makeExpression 'NE', 'num-lit'
-  # mock.syntaxTree
-  #   .navigate ['start', 'hd']
-  #   .fill number
+  grammarText.value = JSON.stringify litRules, null, 2
 
-  # number2 = mock.grammar.makeExpression 'NE', 'num-lit'
-  # mock.syntaxTree
-  #   .navigate ['start', 'tl']
-  #   .fill number2
+  loadRulesFromTextarea = () ->
+    rulesText = JSON.parse grammarText.value
+    mock = {}
+    mock.rules =
+      _.mapValues rulesText, (vo) ->
+        _.mapValues vo, (vi) ->
+          parseHelper = ({type, id, quantifier, value}) ->
+            switch type
+              when 'expression'
+                new Expression value.map parseHelper
+              when 'literal'
+                new Literal value, quantifier
+              when 'hole'
+                new Hole id, value, quantifier
+              when 'input'
+                new Input id, value, quantifier
+              when 'subexpression'
+                innerExpr = new Expression value.map parseHelper
+                new Subexpression innerExpr, quantifier, id
+          parseHelper parseGrammar vi
+    mock.grammar = new Grammar mock.rules
+    mock.syntaxTree = new SyntaxTree mock.grammar, 'START'
+    startNode = mock.syntaxTree.root
 
-  # list = mock.grammar.makeExpression 'NE', 'list'
-  # mock.syntaxTree
-  #   .navigate ['start', 'tl']
-  #   .fill list
+    if app?
+    then app.loadState mock.syntaxTree
+    else app = new App {syntaxTree: mock.syntaxTree}
 
-  # console.log mock.syntaxTree
-
-  # mock.syntaxTree.root
-  #   .navigateHole [0, 0], true
-  #   .fill numNode
-
-  # mock.syntaxTree.root
-  #   .navigateHole [0, 1], true
-  #   .fill arithNode
-
-  # mock.syntaxTree.root
-  #   .navigateHole [0], true
-  #   .fill arithNode
-
-  # mock.syntaxTree.root
-  #   .navigateHole [0, 1], true
-  #   .fill numNode
-
-  app = new App {syntaxTree: mock.syntaxTree}
-
+  do loadRulesFromTextarea
+  Polymer.Gestures.add setGrammar, 'up', loadRulesFromTextarea
   Polymer.Gestures.add (document.querySelector '#render'), 'up', (evt) ->
     alert app.syntaxTree.root.render()

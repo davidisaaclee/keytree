@@ -18,7 +18,8 @@
   ],
   "dependencies": {
     "polymer": "Polymer/polymer#~1.0.4",
-    "polymer-gestures": "Polymer/polymer-gestures#~0.5.6"
+    "polymer-gestures": "Polymer/polymer-gestures#~0.5.6",
+    "disclose-section": "davidisaaclee/disclose-section"
   },
   "devDependencies": {
     "text-tree": "davidisaaclee/text-tree"

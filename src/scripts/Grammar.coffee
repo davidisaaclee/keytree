@@ -20,9 +20,15 @@ class Grammar
 class Expression
   constructor: (@pieces) ->
 
+  # TODO: make `data` a vector
+  ###
+  Creates a new instance of this Expression, with applied data.
+  ###
   withData: (data) ->
-    # TODO
-    console.log 'withData() not yet implemented.'
+    new Expression @pieces.map (pc) ->
+      switch pc.type
+        when 'input' then pc.withData data
+        else pc
 
   display: () ->
     @pieces
@@ -63,11 +69,19 @@ class Hole extends Piece
   display: () -> "<#{@identifier}:#{@group}>"
 
 class Input extends Piece
-  constructor: (@identifier, @pattern, @quantifier) ->
+  constructor: (@identifier, @pattern, @quantifier, @data = null) ->
     @type = 'input'
     if not @quantifier? then @quantifier = 'one'
 
-  display: () -> "<#{@identifier}:#{@pattern}"
+  display: () ->
+    if @data?
+    then @data
+    else "<#{@identifier}:#{@pattern}>"
+
+  ###
+  Creates a new `Input` piece with the supplied data.
+  ###
+  withData: (data) -> new Input @identifier, @pattern, @quantifier, data
 
 class Subexpression extends Piece
   constructor: (@expression, @quantifier, @identifier) ->

@@ -422,6 +422,8 @@ class Node
               when 'optional'
                 if info.holes[pc.identifier].instances.length is 0
                   acc.push expandNode
+          # when 'input'
+          #   # TODO
           when 'subexpression'
             ## does this method have any benefit?
             # recurHoles =

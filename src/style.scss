@@ -1,5 +1,6 @@
 $picker-font-size: 12pt;
 $code-font-size: 14pt;
+$background-color: rgba(180, 90, 90, 1);
 
 @mixin user-select($option) {
   user-select: $option;
@@ -10,7 +11,7 @@ $code-font-size: 14pt;
 
 body {
   // background-color: rgba(100, 100, 100, 1);
-  background-color: rgba(180, 90, 90, 1);
+  background-color: $background-color;
 }
 
 #container {
@@ -29,6 +30,10 @@ body {
     height: 100%;
 
     #picker {
+      & * {
+        z-index: 1000;
+      }
+
       // pointer-events: none;
       width: 100%;
       height: 100%;
@@ -48,7 +53,41 @@ body {
 
   #app {
     margin: auto;
-    height: 50%;
+    text-align: center;
+    // height: 50%;
+
+    #grammar-edit {
+      position: relative;
+      color: #eee;
+      font-family: Helvetica, sans-serif;
+      text-align: center;
+      margin: 0 auto;
+
+      p {
+        margin: 0;
+      }
+
+      a {
+        display: inline-block;
+        color: #fff;
+        transition: all 0.1s;
+        border-radius: 6px;
+        padding: 1px;
+        margin: -1px;
+      }
+
+      a:hover {
+        position: relative;
+        left: 0;
+        top: 0;
+        color: #eee;
+        background-color: transparentize(darken($background-color, 10%), 0.4);
+      }
+
+      textarea {
+        font-family: monospace;
+      }
+    }
 
     .node {
       display: inline-block;
