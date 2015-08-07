@@ -21,13 +21,38 @@ body {
       height: 100%;
       font-family: 'Source Code Pro', monospace;
       font-size: 12pt; }
+      #container #overlay #picker * {
+        z-index: 1000; }
       #container #overlay #picker .petal, #container #overlay #picker .pistil {
         box-shadow: 1px 1px 1px 0px rgba(0, 0, 0, 0.3); }
       #container #overlay #picker .petal {
         text-align: center; }
   #container #app {
     margin: auto;
-    height: 50%; }
+    text-align: center; }
+    #container #app #grammar-edit {
+      position: relative;
+      color: #eee;
+      font-family: Helvetica, sans-serif;
+      text-align: center;
+      margin: 0 auto; }
+      #container #app #grammar-edit p {
+        margin: 0; }
+      #container #app #grammar-edit a {
+        display: inline-block;
+        color: #fff;
+        transition: all 0.1s;
+        border-radius: 6px;
+        padding: 1px;
+        margin: -1px; }
+      #container #app #grammar-edit a:hover {
+        position: relative;
+        left: 0;
+        top: 0;
+        color: #eee;
+        background-color: rgba(151, 68, 68, 0.6); }
+      #container #app #grammar-edit textarea {
+        font-family: monospace; }
     #container #app .node {
       display: inline-block;
       margin: 2px 1px;

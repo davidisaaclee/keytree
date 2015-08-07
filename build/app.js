@@ -1,5 +1,6 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var App, Expression, Grammar, Hole, Input, Literal, Node, Piece, Subexpression, SyntaxTree, _, match, parseGrammar, ref, ref1, renameProperty;
+var App, Expression, Grammar, Hole, Input, Literal, Node, Piece, Subexpression, SyntaxTree, _, match, parseGrammar, ref, ref1, renameProperty,
+  slice = [].slice;
 
 _ = require('lodash');
 
@@ -26,7 +27,7 @@ App = (function() {
     this.loadState(this.syntaxTree);
     setTimeout((function(_this) {
       return function() {
-        return _this.setActiveHole([]);
+        return _this.setActiveHole(['start::0']);
       };
     })(this));
   }
@@ -78,6 +79,7 @@ App = (function() {
         var expr, model, ref2;
         model = event.detail.value;
         expr = _this.syntaxTree.grammar.makeExpression(model.group, model.identifier, model.data);
+        console.log(expr);
         return (ref2 = _this._activeHole) != null ? ref2.nodeModel.fill(expr) : void 0;
       };
     })(this);
@@ -89,6 +91,8 @@ App = (function() {
   };
 
   App.prototype.loadState = function(syntaxTree) {
+    var syntaxTreeToTextTree, updateView;
+    this.syntaxTree = syntaxTree;
 
     /*
     TextTreeModel ::= TextTreeHoleModel
@@ -105,7 +109,6 @@ App = (function() {
       type: 'literal'
       value: String
      */
-    var syntaxTreeToTextTree, updateView;
     syntaxTreeToTextTree = function(st) {
       var recursiveOptions, toRename;
       toRename = {
@@ -131,6 +134,7 @@ App = (function() {
 
   App.prototype.setActiveHole = function(path, useNumericPath) {
     var nodeModel;
+    console.log.apply(console, ['setActiveHole'].concat(slice.call(arguments)));
     if (this._activeHole != null) {
       Polymer.dom(this._activeHole.nodeElement).classList.remove('active-node');
     }
@@ -172,8 +176,8 @@ App = (function() {
               };
             }
           };
-          needsInput = _.any(rules[group][innerKey].symbols, function(sym) {
-            return sym.constructor.name === 'Regex';
+          needsInput = _.any(rules[group][innerKey].pieces, {
+            type: 'input'
           });
           custom = needsInput ? {
             type: 'input',
@@ -205,7 +209,7 @@ App = (function() {
 })();
 
 window.addEventListener('WebComponentsReady', function() {
-  var app, koffeeRules, litRules, mock, startNode;
+  var app, grammarText, litRules, loadRulesFromTextarea, setGrammar;
   litRules = {
     'START': {
       'start': '<start:NE>'
@@ -214,66 +218,63 @@ window.addEventListener('WebComponentsReady', function() {
       'num-lit': '"(num " <digits:N> ")"',
       'arith-op': '"(arith " <rator:A> "\n\t" <randl:NE> "\n\t" <randr:NE> ")"',
       'list': '"(list " <element:NE>* ")"',
-      'list-lit': '"[" (<hd:NE> (", " <tl:NE>)*)? "]"'
+      'list-lit': '"[" (<hd:NE> (", " <tl:NE>)*)? "]"',
+      'variable': '<identifier:\\any>'
     },
     'N': {
       'digits': '<digits:\\numbers>'
     },
     'A': {
-      '+': '"+"',
-      '-': '"-"',
-      '*': '"*"',
-      '/': '"/"'
+      'add': '"+"',
+      'subtract': '"-"',
+      'multiply': '"*"',
+      'divid': '"/"'
     }
   };
-  koffeeRules = {
-    START: {
-      start: '<start:BLOCK>'
-    },
-    BLOCK: {
-      block: '(<statement:E> "\n")*'
-    },
-    E: {
-      app: '<function:E> " " <arg:E> (", " <args:E>)*',
-      doapp: '"do " <function:E>',
-      assign: '<id:ID> " = " <expr:E>',
-      func: '"(" (<parameter:ID> (", " <parameters:ID>)*)? ") -> " <body:BLOCK>',
-      ident: '<id:ID>'
-    },
-    ID: {
-      ident: '"placeholder"'
-    }
-  };
-  mock = {};
-  mock.rules = _.mapValues(litRules, function(vo) {
-    return _.mapValues(vo, function(vi) {
-      var parseHelper;
-      parseHelper = function(arg) {
-        var id, innerExpr, quantifier, type, value;
-        type = arg.type, id = arg.id, quantifier = arg.quantifier, value = arg.value;
-        switch (type) {
-          case 'expression':
-            return new Expression(value.map(parseHelper));
-          case 'literal':
-            return new Literal(value, quantifier);
-          case 'hole':
-            return new Hole(id, value, quantifier);
-          case 'input':
-            return new Input(id, value, quantifier);
-          case 'subexpression':
-            innerExpr = new Expression(value.map(parseHelper));
-            return new Subexpression(innerExpr, quantifier, id);
-        }
-      };
-      return parseHelper(parseGrammar(vi));
+  grammarText = document.querySelector('#grammarText');
+  setGrammar = document.querySelector('#setGrammar');
+  app = null;
+  grammarText.value = JSON.stringify(litRules, null, 2);
+  loadRulesFromTextarea = function() {
+    var mock, rulesText, startNode;
+    rulesText = JSON.parse(grammarText.value);
+    mock = {};
+    mock.rules = _.mapValues(rulesText, function(vo) {
+      return _.mapValues(vo, function(vi) {
+        var parseHelper;
+        parseHelper = function(arg) {
+          var id, innerExpr, quantifier, type, value;
+          type = arg.type, id = arg.id, quantifier = arg.quantifier, value = arg.value;
+          switch (type) {
+            case 'expression':
+              return new Expression(value.map(parseHelper));
+            case 'literal':
+              return new Literal(value, quantifier);
+            case 'hole':
+              return new Hole(id, value, quantifier);
+            case 'input':
+              return new Input(id, value, quantifier);
+            case 'subexpression':
+              innerExpr = new Expression(value.map(parseHelper));
+              return new Subexpression(innerExpr, quantifier, id);
+          }
+        };
+        return parseHelper(parseGrammar(vi));
+      });
     });
-  });
-  mock.grammar = new Grammar(mock.rules);
-  mock.syntaxTree = new SyntaxTree(mock.grammar, 'START');
-  startNode = mock.syntaxTree.root;
-  app = new App({
-    syntaxTree: mock.syntaxTree
-  });
+    mock.grammar = new Grammar(mock.rules);
+    mock.syntaxTree = new SyntaxTree(mock.grammar, 'START');
+    startNode = mock.syntaxTree.root;
+    if (app != null) {
+      return app.loadState(mock.syntaxTree);
+    } else {
+      return app = new App({
+        syntaxTree: mock.syntaxTree
+      });
+    }
+  };
+  loadRulesFromTextarea();
+  Polymer.Gestures.add(setGrammar, 'up', loadRulesFromTextarea);
   return Polymer.Gestures.add(document.querySelector('#render'), 'up', function(evt) {
     return alert(app.syntaxTree.root.render());
   });
@@ -12672,8 +12673,20 @@ Expression = (function() {
     this.pieces = pieces;
   }
 
+
+  /*
+  Creates a new instance of this Expression, with applied data.
+   */
+
   Expression.prototype.withData = function(data) {
-    return console.log('withData() not yet implemented.');
+    return new Expression(this.pieces.map(function(pc) {
+      switch (pc.type) {
+        case 'input':
+          return pc.withData(data);
+        default:
+          return pc;
+      }
+    }));
   };
 
   Expression.prototype.display = function() {
@@ -12759,10 +12772,11 @@ Hole = (function(superClass) {
 Input = (function(superClass) {
   extend(Input, superClass);
 
-  function Input(identifier, pattern, quantifier1) {
+  function Input(identifier, pattern, quantifier1, data1) {
     this.identifier = identifier;
     this.pattern = pattern;
     this.quantifier = quantifier1;
+    this.data = data1 != null ? data1 : null;
     this.type = 'input';
     if (this.quantifier == null) {
       this.quantifier = 'one';
@@ -12770,7 +12784,20 @@ Input = (function(superClass) {
   }
 
   Input.prototype.display = function() {
-    return "<" + this.identifier + ":" + this.pattern;
+    if (this.data != null) {
+      return this.data;
+    } else {
+      return "<" + this.identifier + ":" + this.pattern + ">";
+    }
+  };
+
+
+  /*
+  Creates a new `Input` piece with the supplied data.
+   */
+
+  Input.prototype.withData = function(data) {
+    return new Input(this.identifier, this.pattern, this.quantifier, data);
   };
 
   return Input;
