@@ -31,6 +31,7 @@ A build attempting to maximize features and lack of bugs can be demo'd at
     ```
 4. Serve from base directory, and launch from `<server>/build/index.html`.
 
+<section id="grammar-doc"/>
 ## Grammars
 
 You can input your own grammar as JSON data.
