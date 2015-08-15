@@ -1,6 +1,5 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var App, Expression, Grammar, Hole, Input, Literal, Node, Piece, Subexpression, SyntaxTree, _, match, parseGrammar, ref, ref1, renameProperty,
-  slice = [].slice;
+var App, Expression, Grammar, Hole, Input, Literal, Node, Piece, Subexpression, SyntaxTree, _, match, parseGrammar, ref, ref1, renameProperty;
 
 _ = require('lodash');
 
@@ -42,15 +41,43 @@ App = (function() {
     };
     startFlowerPicker = (function(_this) {
       return function(evt) {
-        var holeCenter, holeElement, holeRect, pathToHole, selectedRulesAsPetals;
+        var holeCenter, holeElement, holeRect, inputPiece, node, pathToHole, scope, selectedRulesAsPetals;
         isFlowerPickerActive = true;
         _this._flowerPicker.style['pointer-events'] = 'auto';
         pathToHole = evt.detail.idPath;
-        selectedRulesAsPetals = _this._rulesToPetals(_this.syntaxTree.grammar, [_this.syntaxTree.navigate(pathToHole).holeInformation.group]);
+        node = _this.syntaxTree.navigate(pathToHole);
+        console.log(node);
+        selectedRulesAsPetals = null;
+        if (node.holeInformation.isUserString) {
+          scope = _this;
+          inputPiece = new Input(node.holeInformation.id, node.holeInformation.pattern, node.holeInformation.quantifier);
+          selectedRulesAsPetals = [
+            {
+              model: new Expression([inputPiece]),
+              isLeaf: true,
+              type: 'input',
+              value: function(model, data) {
+                return {
+                  type: 'input',
+                  data: data,
+                  template: new Expression([new Literal(data)])
+                };
+              },
+              display: function(model, data) {
+                if ((data != null) && data.length > 0) {
+                  return (new Input(node.holeInformation.id, node.holeInformation.pattern, node.holeInformation.quantifier, data)).display();
+                } else {
+                  return (new Input(node.holeInformation.id, node.holeInformation.pattern, node.holeInformation.quantifier)).display();
+                }
+              }
+            }
+          ];
+        } else {
+          selectedRulesAsPetals = _this._rulesToPetals(_this.syntaxTree.grammar, [node.holeInformation.group]);
+        }
         holeElement = evt.detail.tree.navigate(pathToHole);
         if (holeElement == null) {
-          debugger;
-          evt.detail.tree.navigate(pathToHole);
+          throw new Error('Selected an invalid hole element at path', pathToHole);
         }
         holeRect = holeElement.getBoundingClientRect();
         holeCenter = {
@@ -78,8 +105,7 @@ App = (function() {
       return function(event) {
         var expr, model, ref2;
         model = event.detail.value;
-        expr = _this.syntaxTree.grammar.makeExpression(model.group, model.identifier, model.data);
-        console.log(expr);
+        expr = model.type === 'input' ? model.template : _this.syntaxTree.grammar.makeExpression(model.group, model.identifier, model.data);
         return (ref2 = _this._activeHole) != null ? ref2.nodeModel.fill(expr) : void 0;
       };
     })(this);
@@ -134,7 +160,6 @@ App = (function() {
 
   App.prototype.setActiveHole = function(path, useNumericPath) {
     var nodeModel;
-    console.log.apply(console, ['setActiveHole'].concat(slice.call(arguments)));
     if (this._activeHole != null) {
       Polymer.dom(this._activeHole.nodeElement).classList.remove('active-node');
     }
@@ -12721,7 +12746,7 @@ Piece = (function() {
   };
 
   Piece.prototype.display = function() {
-    return console.log('display() not overriden for this Piece:', this);
+    return console.warn('display() not overriden for this Piece:', this);
   };
 
   return Piece;
@@ -12916,7 +12941,7 @@ SyntaxTree = (function() {
   };
 
   SyntaxTree.prototype.navigateExpression = function(path) {
-    console.log('Called internal method `SyntaxTree::navgiateExpression()`.');
+    console.warn('Called internal method `SyntaxTree::navgiateExpression()`.');
     return this._baseNode.navigateExpression(path);
   };
 
@@ -13057,8 +13082,7 @@ Node = (function() {
           _this._parent = newValue;
           if (_this._parent != null) {
             if (_this._parent._holes[holeId] == null) {
-              console.log('ERROR: Attempted to fill non-existent hole.');
-              debugger;
+              throw new Error('ERROR: Attempted to fill non-existent hole.');
             }
             return _this.holeInformation = _this._parent._holes[holeId];
           }
@@ -13235,7 +13259,7 @@ Node = (function() {
             }
           } else {
             if (hd.index == null) {
-              console.log('navigateExpression() - Intermediate path element omitting index.', hd);
+              console.warn('navigateExpression() - Intermediate path element omitting index.', hd);
             }
             instance = outerInfo.instances[hd.index];
             if (instance == null) {
@@ -13295,10 +13319,10 @@ Node = (function() {
       var r, type, value;
       type = arg.type, value = arg.value;
       switch (type) {
-        case 'hole-info':
+        case 'HoleInfo':
           acc.push.apply(acc, value.instances);
           return acc;
-        case 'subexpr-info':
+        case 'SubexprInfo':
           r = value.instances.map(function(inst) {
             return inst.infoList.reduce(iteratee);
           }).reduce((function(acc_, chldn) {
@@ -13354,6 +13378,7 @@ Node = (function() {
             });
             break;
           case 'hole':
+          case 'input':
             Array.prototype.push.apply(acc, info.holes[pc.identifier].instances.map(function(instance) {
               return {
                 type: 'hole',
@@ -13448,7 +13473,7 @@ Node = (function() {
   Node.prototype._setTemplate = function(template) {
     var makeHoleInfo, makeInstanceInfo, parentNode;
     if (template == null) {
-      console.log('Node was supplied null template: ', this);
+      console.warn('Node was supplied null template: ', this);
       return;
     }
     this.isFilled = true;
@@ -13464,6 +13489,7 @@ Node = (function() {
           case 'hole':
             acc[piece.identifier] = {
               id: piece.identifier,
+              isUserString: false,
               group: piece.group,
               quantifier: piece.quantifier,
               subexpressionPath: subexprPath
@@ -13472,6 +13498,16 @@ Node = (function() {
           case 'subexpression':
             newSubPath = slice.call(subexprPath).concat([piece.identifier]);
             piece.expression.pieces.reduce(makeHoleInfo(newSubPath), acc);
+            break;
+          case 'input':
+            console.log(piece);
+            acc[piece.identifier] = {
+              id: piece.identifier,
+              isUserString: true,
+              pattern: piece.pattern,
+              quantifier: piece.quantifier,
+              subexpressionPath: subexprPath
+            };
         }
         return acc;
       };
@@ -13484,11 +13520,12 @@ Node = (function() {
         <hole template id>: HoleInfo
       subexpressions:
         <subexpr template id>: SubexprInfo
-      infoList: {type: 'hole-info', value: HoleInfo}
-              | {type: 'subexpr-info', value: SubexprInfo}
+      infoList: {type: 'HoleInfo', value: HoleInfo}
+              | {type: 'SubexprInfo', value: SubexprInfo}
     
     HoleInfo ::=
       instances: [Node]
+      isUserString: false
       pushEmpty: () -> Node
       lastInstance: () -> Node
     
@@ -13499,14 +13536,12 @@ Node = (function() {
     return this._instanceInfo = (makeInstanceInfo = function(expr, path) {
       var reduction;
       reduction = function(acc, elm) {
-        var holeInfo, subExprInfo, subId;
+        var holeInfo, subExprInfo, subId, userStringInfo;
         switch (elm.type) {
           case 'hole':
-            if (acc.holes == null) {
-              acc.holes = {};
-            }
             holeInfo = {
               instances: [],
+              isUserString: false,
               pushEmpty: function(quiet) {
                 var emptyNode, pathString;
                 if (quiet == null) {
@@ -13528,7 +13563,9 @@ Node = (function() {
             };
             acc.holes[elm.identifier] = holeInfo;
             acc.infoList.push({
-              type: 'hole-info',
+              type: 'HoleInfo'
+            });
+            ({
               value: holeInfo
             });
             if (elm.quantifier === 'one') {
@@ -13536,9 +13573,6 @@ Node = (function() {
             }
             break;
           case 'subexpression':
-            if (acc.subexpressions == null) {
-              acc.subexpressions = {};
-            }
             subId = elm.identifier;
             subExprInfo = {
               instances: [],
@@ -13557,16 +13591,59 @@ Node = (function() {
             };
             acc.subexpressions[subId] = subExprInfo;
             acc.infoList.push({
-              type: 'subexpr-info',
+              type: 'SubexprInfo'
+            });
+            ({
               value: subExprInfo
             });
             if (elm.quantifier === 'one') {
               subExprInfo.pushEmpty(true);
             }
+            break;
+          case 'input':
+            userStringInfo = {
+              instances: [],
+              isUserString: true,
+              pushEmpty: function(quiet) {
+                var emptyInstance, pathString;
+                if (quiet == null) {
+                  quiet = false;
+                }
+                emptyInstance = new Node(parentNode, elm.identifier);
+                pathString = slice.call(path).concat([this.instances.length]).join('.');
+                emptyInstance.instanceId = elm.identifier + "::" + pathString;
+                this.instances.push(emptyInstance);
+                parentNode.childrenMap[emptyInstance.instanceId] = emptyInstance;
+                if (!quiet) {
+                  parentNode.dispatchEvent('changed');
+                }
+                return emptyInstance;
+              }
+            };
+            acc.holes[elm.identifier] = userStringInfo;
+            acc.infoList.push({
+              type: 'HoleInfo'
+            });
+            ({
+              value: userStringInfo
+            });
+            if (elm.quantifier === 'one') {
+              userStringInfo.pushEmpty(true);
+            }
+            break;
+          case 'literal':
+            (function() {})();
+            break;
+          default:
+            console.log(elm);
+            throw new Error('Invalid piece type on piece.');
         }
         return acc;
       };
       return expr.pieces.reduce(reduction, {
+        holes: {},
+        subexpressions: {},
+        userStrings: {},
         infoList: []
       });
     })(template, []);

@@ -86,12 +86,16 @@ gulp.task('coffee', function () {
     transform: [coffeeify]
   })).bundle();
 
-  bundle.on('error', notify.onError({
-    "title": "CoffeeScript error",
-    message: '<%= error.message %>',
-    "sound": "Frog", // case sensitive
-    "icon": false
-  }));
+  bundle
+    .on('error', notify.onError({
+      "title": "CoffeeScript error",
+      message: '<%= error.message %>',
+      "sound": "Frog", // case sensitive
+      "icon": false
+    }))
+    .on('error', function (error) {
+      console.log(error);
+    });
 
   // var c = coffeeify();
   // c.on('error', function (err) {

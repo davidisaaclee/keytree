@@ -37,14 +37,46 @@ class App
       isFlowerPickerActive = true
       @_flowerPicker.style['pointer-events'] = 'auto'
       pathToHole = evt.detail.idPath
-      selectedRulesAsPetals =
-        @_rulesToPetals \
+      node = @syntaxTree.navigate pathToHole
+
+      console.log node
+
+      selectedRulesAsPetals = null
+      if node.holeInformation.isUserString
+        # DEBUG: replace this with non-petal input
+        scope = this
+        inputPiece = new Input \
+          node.holeInformation.id,
+          node.holeInformation.pattern,
+          node.holeInformation.quantifier
+        selectedRulesAsPetals = [
+          model: new Expression [inputPiece]
+          isLeaf: true
+          type: 'input'
+          value: (model, data) ->
+            type: 'input'
+            data: data
+            template: new Expression [new Literal data]
+          display: (model, data) ->
+            if data? and data.length > 0
+            then do (new Input \
+              node.holeInformation.id,
+              node.holeInformation.pattern,
+              node.holeInformation.quantifier,
+              data).display
+            else do (new Input \
+              node.holeInformation.id,
+              node.holeInformation.pattern,
+              node.holeInformation.quantifier).display
+        ]
+      else
+        selectedRulesAsPetals = @_rulesToPetals \
           @syntaxTree.grammar, \
-          [@syntaxTree.navigate(pathToHole).holeInformation.group]
+          [node.holeInformation.group]
+
       holeElement = evt.detail.tree.navigate pathToHole
       if not holeElement?
-        debugger
-        evt.detail.tree.navigate pathToHole
+        throw new Error 'Selected an invalid hole element at path', pathToHole
 
       # FIXME: Getting the bounding client rect here seems to be buggy
       #   on Safari - pinch-zooming in the webpage changes the location
@@ -67,9 +99,16 @@ class App
 
     onFlowerPickerSelect = (event) =>
       model = event.detail.value
-      expr = @syntaxTree.grammar.makeExpression model.group, model.identifier, model.data
-      console.log expr
+
+      expr =
+        if model.type is 'input'
+        then model.template
+        else @syntaxTree.grammar.makeExpression model.group, model.identifier, model.data
+
       @_activeHole?.nodeModel.fill expr
+
+      # expr = @syntaxTree.grammar.makeExpression model.group, model.identifier, model.data
+      # @_activeHole?.nodeModel.fill expr
 
     @_textRoot.addEventListener 'requested-fill', startFlowerPicker
     Polymer.Gestures.add @_textRoot, 'up', endFlowerPicker
@@ -95,7 +134,6 @@ class App
       value: String
     ###
     syntaxTreeToTextTree = (st) ->
-      # console.log st.flatten()
       toRename =
         'instanceId': 'id'
         'holeId': 'placeholder'
@@ -113,7 +151,6 @@ class App
     do updateView
 
   setActiveHole: (path, useNumericPath) ->
-    console.log 'setActiveHole', arguments...
     if @_activeHole?
       Polymer.dom(@_activeHole.nodeElement).classList.remove 'active-node'
 

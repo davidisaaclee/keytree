@@ -52,7 +52,7 @@ class Piece
       when 'subexpression' then new Subexpression data.expression, quantifier
 
   display: () ->
-    console.log 'display() not overriden for this Piece:', this
+    console.warn 'display() not overriden for this Piece:', this
 
 class Literal extends Piece
   constructor: (@text, @quantifier) ->

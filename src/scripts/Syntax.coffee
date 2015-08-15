@@ -76,7 +76,7 @@ class SyntaxTree
   # doesn't know the SyntaxTree-assigned IDs for holes).
   navigateExpression: (path) ->
     # logging to see if it pops up anywhere outside of testing
-    console.log 'Called internal method `SyntaxTree::navgiateExpression()`.'
+    console.warn 'Called internal method `SyntaxTree::navgiateExpression()`.'
     @_baseNode.navigateExpression path
 
   # Register a callback to be executed on tree modification.
@@ -189,8 +189,7 @@ class Node
         @_parent = newValue
         if @_parent?
           if not @_parent._holes[holeId]?
-            console.log 'ERROR: Attempted to fill non-existent hole.'
-            debugger
+            throw new Error 'ERROR: Attempted to fill non-existent hole.'
           @holeInformation = @_parent._holes[holeId]
     @_eventParent = @parent = parent
 
@@ -326,7 +325,7 @@ class Node
             return outerInfo
         else
           if not hd.index?
-            console.log 'navigateExpression() - Intermediate path element omitting index.', hd
+            console.warn 'navigateExpression() - Intermediate path element omitting index.', hd
           instance = outerInfo.instances[hd.index]
           if not instance?
             return undefined
@@ -364,10 +363,10 @@ class Node
 
     iteratee = (acc, {type, value}) ->
       switch type
-        when 'hole-info'
+        when 'HoleInfo'
           acc.push value.instances...
           return acc
-        when 'subexpr-info'
+        when 'SubexprInfo'
           r = value.instances
             .map (inst) -> inst.infoList.reduce iteratee
             .reduce ((acc_, chldn) -> acc_.push chldn...), []
@@ -408,7 +407,8 @@ class Node
         switch pc.type
           when 'literal'
             acc.push {type: 'literal', value: pc.text}
-          when 'hole'
+
+          when 'hole', 'input'
             Array.prototype.push.apply acc, \
               info.holes[pc.identifier].instances.map (instance) ->
                 type: 'hole'
@@ -426,8 +426,7 @@ class Node
               when 'optional'
                 if info.holes[pc.identifier].instances.length is 0
                   acc.push expandNode
-          # when 'input'
-          #   # TODO
+
           when 'subexpression'
             ## does this method have any benefit?
             # recurHoles =
@@ -475,7 +474,7 @@ class Node
 
   _setTemplate: (template) ->
     if not template?
-      console.log 'Node was supplied null template: ', @
+      console.warn 'Node was supplied null template: ', this
       return
 
     @isFilled = true
@@ -490,12 +489,21 @@ class Node
           when 'hole'
             acc[piece.identifier] =
               id: piece.identifier
+              isUserString: false
               group: piece.group
               quantifier: piece.quantifier
               subexpressionPath: subexprPath
           when 'subexpression'
             newSubPath = [subexprPath..., piece.identifier]
             piece.expression.pieces.reduce (makeHoleInfo newSubPath), acc
+          when 'input'
+            console.log piece
+            acc[piece.identifier] =
+              id: piece.identifier
+              isUserString: true
+              pattern: piece.pattern
+              quantifier: piece.quantifier
+              subexpressionPath: subexprPath
         return acc
     @_holes = template.pieces.reduce (makeHoleInfo []), {}
 
@@ -505,11 +513,12 @@ class Node
         <hole template id>: HoleInfo
       subexpressions:
         <subexpr template id>: SubexprInfo
-      infoList: {type: 'hole-info', value: HoleInfo}
-              | {type: 'subexpr-info', value: SubexprInfo}
+      infoList: {type: 'HoleInfo', value: HoleInfo}
+              | {type: 'SubexprInfo', value: SubexprInfo}
 
     HoleInfo ::=
       instances: [Node]
+      isUserString: false
       pushEmpty: () -> Node
       lastInstance: () -> Node
 
@@ -521,10 +530,9 @@ class Node
       reduction = (acc, elm) ->
         switch elm.type
           when 'hole'
-            if not acc.holes?
-              acc.holes = {}
             holeInfo =
               instances: []
+              isUserString: false
               # set `quiet` to true to disable sending change event
               pushEmpty: (quiet = false) ->
                 emptyNode = new Node parentNode, elm.identifier
@@ -538,28 +546,70 @@ class Node
               lastInstance: () -> @instances[@instances.length - 1]
 
             acc.holes[elm.identifier] = holeInfo
-            acc.infoList.push {type: 'hole-info', value: holeInfo}
+            acc.infoList.push \
+              type: 'HoleInfo'
+              value: holeInfo
             if elm.quantifier is 'one'
               holeInfo.pushEmpty(true)
+
+
           when 'subexpression'
-            if not acc.subexpressions?
-              acc.subexpressions = {}
             subId = elm.identifier
             subExprInfo =
               instances: []
               # set `quiet` to true to disable sending change event
               pushEmpty: (quiet = false) ->
-                instanceInfo = makeInstanceInfo elm.expression, [path..., subId, @instances.length]
+                instanceInfo =
+                  makeInstanceInfo \
+                    elm.expression,
+                    [path..., subId, @instances.length]
                 @instances.push instanceInfo
                 if not quiet
                   parentNode.dispatchEvent 'changed'
                 return instanceInfo
             acc.subexpressions[subId] = subExprInfo
-            acc.infoList.push {type: 'subexpr-info', value: subExprInfo}
+            acc.infoList.push \
+              type: 'SubexprInfo'
+              value: subExprInfo
             if elm.quantifier is 'one'
-              subExprInfo.pushEmpty(true)
+              subExprInfo.pushEmpty true
+
+
+          when 'input'
+            userStringInfo =
+              instances: []
+              isUserString: true
+              pushEmpty: (quiet = false) ->
+                emptyInstance = new Node parentNode, elm.identifier
+                pathString = [path..., @instances.length].join '.'
+                emptyInstance.instanceId = "#{elm.identifier}::#{pathString}"
+                @instances.push emptyInstance
+                parentNode.childrenMap[emptyInstance.instanceId] = emptyInstance
+                if not quiet
+                  parentNode.dispatchEvent 'changed'
+                emptyInstance
+
+            acc.holes[elm.identifier] = userStringInfo
+            acc.infoList.push \
+              type: 'HoleInfo'
+              value: userStringInfo
+
+            if elm.quantifier is 'one'
+              userStringInfo.pushEmpty true
+
+          when 'literal'
+            # do nothing
+            do ->
+
+          else
+            console.log elm
+            throw new Error 'Invalid piece type on piece.'
         return acc
-      expr.pieces.reduce reduction, {infoList: []}
+      expr.pieces.reduce reduction,
+        holes: {}
+        subexpressions: {}
+        userStrings: {}
+        infoList: []
 
 module.exports =
   SyntaxTree: SyntaxTree
