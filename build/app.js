@@ -12916,6 +12916,7 @@ SyntaxTree = (function() {
   };
 
   SyntaxTree.prototype.navigateExpression = function(path) {
+    console.log('Called internal method `SyntaxTree::navgiateExpression()`.');
     return this._baseNode.navigateExpression(path);
   };
 
