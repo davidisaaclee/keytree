@@ -29,6 +29,35 @@ App = (function() {
         return _this.setActiveHole(['start::0']);
       };
     })(this));
+    addEventListener('keyup', (function(_this) {
+      return function(evt) {
+        var moveTo;
+        if (evt.keyIdentifier === 'Up') {
+          moveTo = _this.syntaxTree.parentOf(_this._activeHole.nodeModel);
+          if (moveTo != null) {
+            _this.setActiveHole(_this.syntaxTree.pathForNode(moveTo));
+          }
+        }
+        if (evt.keyIdentifier === 'Down') {
+          moveTo = _this.syntaxTree.firstChildOf(_this._activeHole.nodeModel);
+          if (moveTo != null) {
+            _this.setActiveHole(_this.syntaxTree.pathForNode(moveTo));
+          }
+        }
+        if (evt.keyIdentifier === 'Right') {
+          moveTo = _this.syntaxTree.nextSibling(_this._activeHole.nodeModel);
+          if (moveTo != null) {
+            _this.setActiveHole(_this.syntaxTree.pathForNode(moveTo));
+          }
+        }
+        if (evt.keyIdentifier === 'Left') {
+          moveTo = _this.syntaxTree.previousSibling(_this._activeHole.nodeModel);
+          if (moveTo != null) {
+            return _this.setActiveHole(_this.syntaxTree.pathForNode(moveTo));
+          }
+        }
+      };
+    })(this));
   }
 
   App.prototype.setup = function() {
@@ -12975,15 +13004,43 @@ SyntaxTree = (function() {
     return this._baseNode.flatten();
   };
 
-  SyntaxTree.prototype.nextNode = function(node) {
-    if (_.any(node.holeList, function(arg) {
-      var value;
-      value = arg.value;
-      return value != null;
-    })) {
-      return node.holeList[0];
+  SyntaxTree.prototype.nextSibling = function(node) {
+    var i, j, ref1, ref2, siblings;
+    siblings = (ref1 = node._parent) != null ? ref1.children() : void 0;
+    for (i = j = 0, ref2 = siblings.length; 0 <= ref2 ? j <= ref2 : j >= ref2; i = 0 <= ref2 ? ++j : --j) {
+      if (siblings[i] === node) {
+        return siblings[i + 1];
+      }
+    }
+  };
+
+  SyntaxTree.prototype.previousSibling = function(node) {
+    var i, j, ref1, ref2, siblings;
+    siblings = (ref1 = node._parent) != null ? ref1.children() : void 0;
+    for (i = j = 0, ref2 = siblings.length; 0 <= ref2 ? j <= ref2 : j >= ref2; i = 0 <= ref2 ? ++j : --j) {
+      if (siblings[i] === node) {
+        return siblings[i - 1];
+      }
+    }
+  };
+
+  SyntaxTree.prototype.firstChildOf = function(node) {
+    return node.children()[0];
+  };
+
+  SyntaxTree.prototype.parentOf = function(node) {
+    return node._parent;
+  };
+
+  SyntaxTree.prototype.pathForNode = function(node) {
+    if (node._parent != null) {
+      return slice.call(this.pathForNode(node._parent)).concat([node.instanceId]);
     } else {
-      return console.log(node);
+      if (node.instanceId != null) {
+        return [node.instanceId];
+      } else {
+        return [];
+      }
     }
   };
 
@@ -13314,24 +13371,17 @@ Node = (function() {
     if (this.template == null) {
       return [];
     }
-    iteratee = function(acc, arg) {
-      var r, type, value;
-      type = arg.type, value = arg.value;
-      switch (type) {
+    iteratee = function(elm) {
+      switch (elm.type) {
         case 'HoleInfo':
-          acc.push.apply(acc, value.instances);
-          return acc;
+          return elm.value.instances;
         case 'SubexprInfo':
-          r = value.instances.map(function(inst) {
-            return inst.infoList.reduce(iteratee);
-          }).reduce((function(acc_, chldn) {
-            return acc_.push.apply(acc_, chldn);
-          }), []);
-          acc.push.apply(acc, r);
-          return acc;
+          return _(elm.value.instances).map(function(inst) {
+            return _(inst.infoList).map(iteratee).flatten().value();
+          }).flatten().value();
       }
     };
-    return this._instanceInfo.infoList.reduce(iteratee, []);
+    return _(this._instanceInfo.infoList).map(iteratee).flatten().value();
   };
 
 
@@ -13561,9 +13611,7 @@ Node = (function() {
             };
             acc.holes[elm.identifier] = holeInfo;
             acc.infoList.push({
-              type: 'HoleInfo'
-            });
-            ({
+              type: 'HoleInfo',
               value: holeInfo
             });
             if (elm.quantifier === 'one') {
@@ -13589,9 +13637,7 @@ Node = (function() {
             };
             acc.subexpressions[subId] = subExprInfo;
             acc.infoList.push({
-              type: 'SubexprInfo'
-            });
-            ({
+              type: 'SubexprInfo',
               value: subExprInfo
             });
             if (elm.quantifier === 'one') {
@@ -13620,9 +13666,7 @@ Node = (function() {
             };
             acc.holes[elm.identifier] = userStringInfo;
             acc.infoList.push({
-              type: 'HoleInfo'
-            });
-            ({
+              type: 'HoleInfo',
               value: userStringInfo
             });
             if (elm.quantifier === 'one') {

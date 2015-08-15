@@ -96,15 +96,66 @@ class SyntaxTree
 
   flatten: () -> do @_baseNode.flatten
 
-  # If `node` has children, return the first child.
-  # If `node` has no children, but has a succeeding sibling,
-  #   return that sibling.
-  # Otherwise, return `node`.
-  nextNode: (node) ->
-    if (_.any node.holeList, ({value}) -> value?)
-      node.holeList[0]
+  nextSibling: (node) ->
+    siblings = node._parent?.children()
+    for i in [0..siblings.length]
+      if siblings[i] is node
+        return siblings[i + 1]
+
+  previousSibling: (node) ->
+    siblings = node._parent?.children()
+    for i in [0..siblings.length]
+      if siblings[i] is node
+        return siblings[i - 1]
+
+  firstChildOf: (node) -> node.children()[0]
+
+  parentOf: (node) -> node._parent
+
+
+  # # If `node` has children, return the first child.
+  # # If `node` has no children, but has a succeeding sibling,
+  # #   return that sibling.
+  # # Otherwise, return `node`.
+  # nextNode: (node) ->
+  #   children = node.children()
+  #   nextSibling = (nd) ->
+  #     siblings = nd._parent?.children()
+  #     for i in [0..siblings.length]
+  #       if siblings[i] is nd
+  #         return siblings[i + 1]
+  #   switch
+  #     when children.length > 0 then _.head children
+  #     when (nextSibling node)? then (nextSibling node)
+  #     else node
+
+
+  # # If `node` has a preceding sibling, return that sibling.
+  # # If `node` has no preceding sibling, but has a parent,
+  # #   return the node's parent.
+  # # Otherwise, return `node`.
+  # previousNode: (node) ->
+  #   children = node.children()
+  #   previousSibling = (nd) ->
+  #     siblings = nd._parent?.children()
+  #     for i in [0..siblings.length]
+  #       if siblings[i] is nd
+  #         return siblings[i - 1]
+  #   switch
+  #     when (previousSibling node)? then (previousSibling node)
+  #     when node._parent? then node._parent
+  #     else node
+
+
+  pathForNode: (node) ->
+    if node._parent?
+    then [(@pathForNode node._parent)..., node.instanceId]
     else
-      console.log node
+      if node.instanceId?
+      then [node.instanceId]
+      else []
+
+
 ###
 Subexpressions
 
@@ -361,18 +412,24 @@ class Node
       # Template not yet set; cannot have any children.
       return []
 
-    iteratee = (acc, {type, value}) ->
-      switch type
+    iteratee = (elm) ->
+      switch elm.type
         when 'HoleInfo'
-          acc.push value.instances...
-          return acc
+          return elm.value.instances
         when 'SubexprInfo'
-          r = value.instances
-            .map (inst) -> inst.infoList.reduce iteratee
-            .reduce ((acc_, chldn) -> acc_.push chldn...), []
-          acc.push r...
-          return acc
-    @_instanceInfo.infoList.reduce iteratee, []
+          return _ elm.value.instances
+            .map (inst) ->
+              _ inst.infoList
+                .map iteratee
+                .flatten()
+                .value()
+            .flatten()
+            .value()
+    _ @_instanceInfo.infoList
+      .map iteratee
+      .flatten()
+      .value()
+
 
   ###
   "Flattens" this node's descendants into a concrete syntax tree.
@@ -546,7 +603,7 @@ class Node
 
             acc.holes[elm.identifier] = holeInfo
             acc.infoList.push \
-              type: 'HoleInfo'
+              type: 'HoleInfo',
               value: holeInfo
             if elm.quantifier is 'one'
               holeInfo.pushEmpty(true)
@@ -568,7 +625,7 @@ class Node
                 return instanceInfo
             acc.subexpressions[subId] = subExprInfo
             acc.infoList.push \
-              type: 'SubexprInfo'
+              type: 'SubexprInfo',
               value: subExprInfo
             if elm.quantifier is 'one'
               subExprInfo.pushEmpty true
@@ -590,7 +647,7 @@ class Node
 
             acc.holes[elm.identifier] = userStringInfo
             acc.infoList.push \
-              type: 'HoleInfo'
+              type: 'HoleInfo',
               value: userStringInfo
 
             if elm.quantifier is 'one'
@@ -603,6 +660,7 @@ class Node
           else
             console.log elm
             throw new Error 'Invalid piece type on piece.'
+
         return acc
       expr.pieces.reduce reduction,
         holes: {}

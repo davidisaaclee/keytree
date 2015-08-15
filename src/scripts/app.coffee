@@ -24,6 +24,27 @@ class App
     @loadState @syntaxTree
     setTimeout () => @setActiveHole ['start::0']
 
+    addEventListener 'keyup', (evt) =>
+      if evt.keyIdentifier is 'Up'
+        moveTo = @syntaxTree.parentOf @_activeHole.nodeModel
+        if moveTo?
+          @setActiveHole @syntaxTree.pathForNode moveTo
+
+      if evt.keyIdentifier is 'Down'
+        moveTo = @syntaxTree.firstChildOf @_activeHole.nodeModel
+        if moveTo?
+          @setActiveHole @syntaxTree.pathForNode moveTo
+
+      if evt.keyIdentifier is 'Right'
+        moveTo = @syntaxTree.nextSibling @_activeHole.nodeModel
+        if moveTo?
+          @setActiveHole @syntaxTree.pathForNode moveTo
+
+      if evt.keyIdentifier is 'Left'
+        moveTo = @syntaxTree.previousSibling @_activeHole.nodeModel
+        if moveTo?
+          @setActiveHole @syntaxTree.pathForNode moveTo
+
   setup: () ->
     @_flowerPicker = document.querySelector '#picker'
     @_textRoot = document.querySelector '#tree'
