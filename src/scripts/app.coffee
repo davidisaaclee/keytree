@@ -39,8 +39,6 @@ class App
       pathToHole = evt.detail.idPath
       node = @syntaxTree.navigate pathToHole
 
-      console.log node
-
       selectedRulesAsPetals = null
       if node.holeInformation.isUserString
         # DEBUG: replace this with non-petal input

@@ -497,7 +497,6 @@ class Node
             newSubPath = [subexprPath..., piece.identifier]
             piece.expression.pieces.reduce (makeHoleInfo newSubPath), acc
           when 'input'
-            console.log piece
             acc[piece.identifier] =
               id: piece.identifier
               isUserString: true

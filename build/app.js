@@ -46,7 +46,6 @@ App = (function() {
         _this._flowerPicker.style['pointer-events'] = 'auto';
         pathToHole = evt.detail.idPath;
         node = _this.syntaxTree.navigate(pathToHole);
-        console.log(node);
         selectedRulesAsPetals = null;
         if (node.holeInformation.isUserString) {
           scope = _this;
@@ -13500,7 +13499,6 @@ Node = (function() {
             piece.expression.pieces.reduce(makeHoleInfo(newSubPath), acc);
             break;
           case 'input':
-            console.log(piece);
             acc[piece.identifier] = {
               id: piece.identifier,
               isUserString: true,
