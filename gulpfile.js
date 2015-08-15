@@ -6,6 +6,7 @@ var browserify = require('browserify');
 var sass       = require('gulp-sass');
 var coffeeify  = require('coffeeify');
 var jade       = require('gulp-jade');
+var notify     = require('gulp-notify');
 // var jasmine    = require('gulp-jasmine');
 var jasmineBr  = require('gulp-jasmine-browser');
 var source     = require('vinyl-source-stream');
@@ -85,11 +86,12 @@ gulp.task('coffee', function () {
     transform: [coffeeify]
   })).bundle();
 
-  bundle.on('error', function (err) {
-    console.log(err);
-    // bundle.end();
-    this.emit('end');
-  });
+  bundle.on('error', notify.onError({
+    "title": "CoffeeScript error",
+    message: '<%= error.message %>',
+    "sound": "Frog", // case sensitive
+    "icon": false
+  }));
 
   // var c = coffeeify();
   // c.on('error', function (err) {
@@ -114,24 +116,32 @@ gulp.task('copy', function () {
 
 gulp.task('sass', function () {
   return gulp.src(options.sass.src)
-    .pipe(sass().on('error', sass.logError))
+    .pipe(sass())
+      .on('error', notify.onError({
+        title: "Sass error",
+        message: '<%= error.message %>',
+        sound: "Frog", // case sensitive
+        icon: false
+      }))
     .pipe(gulp.dest(options.sass.dst));
 });
 
 gulp.task('jade', function () {
   return gulp.src(options.jade.src)
     .pipe(jade(options.jade.options))
+      .on('error', notify.onError({
+          title: "Jade error",
+          message: '<%= error.message %>',
+          sound: "Frog", // case sensitive
+          icon: false
+        }))
     .pipe(gulp.dest(options.jade.dst))
 });
 
 gulp.task('build-tests', ['build'], function () {
   var bundle = browserify(options['build-tests'].options).bundle();
 
-  bundle.on('error', function (err) {
-    console.log(err);
-    // bundle.end();
-    this.emit('end');
-  });
+  bundle.on('error', onError);
 
   return bundle
     .pipe(source('test-bundle.js'))
@@ -174,5 +184,9 @@ gulp.task('clean', function () {
 
 function onError (err) {
   console.log(err);
+  notify.onError({
+    message: 'Error: <%= error.message %>',
+    sound: false // deactivate sound?
+  })
   this.emit('end');
 }

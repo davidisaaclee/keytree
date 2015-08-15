@@ -1,0 +1,27 @@
+{
+  "name": "disclose-section",
+  "version": "1.0.0",
+  "authors": [],
+  "description": "An element to hide or show a section.",
+  "keywords": [
+    "web-component",
+    "web-components",
+    "polymer",
+    "disclose-section"
+  ],
+  "main": "disclose-section.html",
+  "license": "http://polymer.github.io/LICENSE.txt",
+  "homepage": "https://github.com/davidisaaclee/disclose-section/",
+  "ignore": [
+    "/.*",
+    "/test/",
+    "/demo/"
+  ],
+  "dependencies": {
+    "polymer": "Polymer/polymer#^1.0.0"
+  },
+  "devDependencies": {
+    "iron-component-page": "PolymerElements/iron-component-page#^1.0.0",
+    "web-component-tester": "*"
+  }
+}

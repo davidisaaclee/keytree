@@ -57,7 +57,6 @@ class SyntaxTree
   constructor: (@grammar, startGroup) ->
     @_listeners = {}
     @_baseNode = Node.makeRoot (new Expression [new Hole 'start', startGroup, 'one'])
-    # @rootHole = _.first _.values @root.childrenMap
     @root = _.first _.values @_baseNode.childrenMap
     @root.routeEvents this
 
@@ -73,7 +72,12 @@ class SyntaxTree
   navigate: (path, useNumericPath) ->
     @_baseNode.navigate path, useNumericPath
 
-  navigateExpression: (path) -> @_baseNode.navigateExpression path
+  # NOTE: I think this method should be only for testing (when you don't
+  # doesn't know the SyntaxTree-assigned IDs for holes).
+  navigateExpression: (path) ->
+    # logging to see if it pops up anywhere outside of testing
+    console.log 'Called internal method `SyntaxTree::navgiateExpression()`.'
+    @_baseNode.navigateExpression path
 
   # Register a callback to be executed on tree modification.
   # Returns an unsubscribe function.
