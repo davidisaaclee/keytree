@@ -24,53 +24,32 @@ class App
     @loadState @syntaxTree
     setTimeout () => @setActiveHole ['start::0']
 
+    # cursor movement
+    addEventListener 'keyup', (evt) =>
+      moveTo = switch evt.keyIdentifier
+        when 'Up'
+          @syntaxTree.parentOf @_activeHole.nodeModel
+        when 'Down'
+          @syntaxTree.firstChildOf @_activeHole.nodeModel
+        when 'Right'
+          @syntaxTree.nextSibling @_activeHole.nodeModel
+        when 'Left'
+          @syntaxTree.previousSibling @_activeHole.nodeModel
+      if moveTo?
+        @setActiveHole @syntaxTree.pathForNode moveTo
+    Polymer.Gestures.add document, 'down', ({detail}) =>
+      @_spawnFlowerPicker @_activeHole.path, detail
+
   setup: () ->
     @_flowerPicker = document.querySelector '#picker'
     @_textRoot = document.querySelector '#tree'
 
-    # Closure variables
-    isFlowerPickerActive = false
+    @_isFlowerPickerActive = false
 
     preventDefault = (evt) -> do evt.preventDefault
 
     startFlowerPicker = (evt) =>
-      isFlowerPickerActive = true
-      @_flowerPicker.style['pointer-events'] = 'auto'
       pathToHole = evt.detail.idPath
-      node = @syntaxTree.navigate pathToHole
-
-      selectedRulesAsPetals = null
-      if node.holeInformation.isUserString
-        # DEBUG: replace this with non-petal input
-        scope = this
-        inputPiece = new Input \
-          node.holeInformation.id,
-          node.holeInformation.pattern,
-          node.holeInformation.quantifier
-        selectedRulesAsPetals = [
-          model: new Expression [inputPiece]
-          isLeaf: true
-          type: 'input'
-          value: (model, data) ->
-            type: 'input'
-            data: data
-            template: new Expression [new Literal data]
-          display: (model, data) ->
-            if data? and data.length > 0
-            then do (new Input \
-              node.holeInformation.id,
-              node.holeInformation.pattern,
-              node.holeInformation.quantifier,
-              data).display
-            else do (new Input \
-              node.holeInformation.id,
-              node.holeInformation.pattern,
-              node.holeInformation.quantifier).display
-        ]
-      else
-        selectedRulesAsPetals = @_rulesToPetals \
-          @syntaxTree.grammar, \
-          [node.holeInformation.group]
 
       holeElement = evt.detail.tree.navigate pathToHole
       if not holeElement?
@@ -85,15 +64,13 @@ class App
         x: holeRect.left + holeRect.width / 2
         y: holeRect.top + holeRect.height / 2
 
-      @setActiveHole pathToHole
-      @_flowerPicker.petals = selectedRulesAsPetals
-      @_flowerPicker.start holeCenter
+      @_spawnFlowerPicker pathToHole, holeCenter
 
     endFlowerPicker = (evt) =>
-      if isFlowerPickerActive
+      if @_isFlowerPickerActive
         @_flowerPicker.style['pointer-events'] = 'none'
         @_flowerPicker.finish {x: evt.detail.x, y: evt.detail.y}
-        isFlowerPickerActive = false
+        @_isFlowerPickerActive = false
 
     onFlowerPickerSelect = (event) =>
       model = event.detail.value
@@ -109,7 +86,7 @@ class App
       # @_activeHole?.nodeModel.fill expr
 
     @_textRoot.addEventListener 'requested-fill', startFlowerPicker
-    Polymer.Gestures.add @_textRoot, 'up', endFlowerPicker
+    Polymer.Gestures.add document, 'up', endFlowerPicker
     @_flowerPicker.addEventListener 'selected', onFlowerPickerSelect
     Polymer.Base.setScrollDirection 'none', @_textRoot
     Polymer.Gestures.add @_flowerPicker, 'track', preventDefault
@@ -196,6 +173,53 @@ class App
     if result.length is 1
     then result[0].children
     else result
+
+  _spawnFlowerPicker: (pathToHole, spawnCenter) =>
+    @_isFlowerPickerActive = true
+    @_flowerPicker.style['pointer-events'] = 'auto'
+    @setActiveHole pathToHole
+    selectedRulesAsPetals = null
+    node = @syntaxTree.navigate pathToHole
+    if node.holeInformation.isUserString
+      ###
+      TODO
+      User string holes should not be modified via the picker.
+
+      Insert the template, and optionally immediately focus on the
+      user string hole(s), with keyboard input.
+      ###
+      # DEBUG: replace this with non-petal input
+      scope = this
+      inputPiece = new Input \
+        node.holeInformation.id,
+        node.holeInformation.pattern,
+        node.holeInformation.quantifier
+      selectedRulesAsPetals = [
+        model: new Expression [inputPiece]
+        isLeaf: true
+        type: 'input'
+        value: (model, data) ->
+          type: 'input'
+          data: data
+          template: new Expression [new Literal data]
+        display: (model, data) ->
+          if data? and data.length > 0
+          then do (new Input \
+            node.holeInformation.id,
+            node.holeInformation.pattern,
+            node.holeInformation.quantifier,
+            data).display
+          else do (new Input \
+            node.holeInformation.id,
+            node.holeInformation.pattern,
+            node.holeInformation.quantifier).display
+      ]
+    else
+      selectedRulesAsPetals = @_rulesToPetals \
+        @syntaxTree.grammar, \
+        [node.holeInformation.group]
+    @_flowerPicker.petals = selectedRulesAsPetals
+    @_flowerPicker.start spawnCenter
 
 
 window.addEventListener 'WebComponentsReady', () ->
