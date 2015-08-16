@@ -1,5 +1,6 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var App, Expression, Grammar, Hole, Input, Literal, Node, Piece, Subexpression, SyntaxTree, _, match, parseGrammar, ref, ref1, renameProperty;
+var App, Expression, Grammar, Hole, Input, Literal, Node, Piece, Subexpression, SyntaxTree, _, match, parseGrammar, ref, ref1, renameProperty,
+  bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
 
 _ = require('lodash');
 
@@ -22,6 +23,7 @@ App = (function() {
 
   function App(arg) {
     this.syntaxTree = arg.syntaxTree;
+    this._spawnFlowerPicker = bind(this._spawnFlowerPicker, this);
     this.setup();
     this.loadState(this.syntaxTree);
     setTimeout((function(_this) {
@@ -32,77 +34,44 @@ App = (function() {
     addEventListener('keyup', (function(_this) {
       return function(evt) {
         var moveTo;
-        if (evt.keyIdentifier === 'Up') {
-          moveTo = _this.syntaxTree.parentOf(_this._activeHole.nodeModel);
-          if (moveTo != null) {
-            _this.setActiveHole(_this.syntaxTree.pathForNode(moveTo));
+        moveTo = (function() {
+          switch (evt.keyIdentifier) {
+            case 'Up':
+              return this.syntaxTree.parentOf(this._activeHole.nodeModel);
+            case 'Down':
+              return this.syntaxTree.firstChildOf(this._activeHole.nodeModel);
+            case 'Right':
+              return this.syntaxTree.nextSibling(this._activeHole.nodeModel);
+            case 'Left':
+              return this.syntaxTree.previousSibling(this._activeHole.nodeModel);
           }
+        }).call(_this);
+        if (moveTo != null) {
+          return _this.setActiveHole(_this.syntaxTree.pathForNode(moveTo));
         }
-        if (evt.keyIdentifier === 'Down') {
-          moveTo = _this.syntaxTree.firstChildOf(_this._activeHole.nodeModel);
-          if (moveTo != null) {
-            _this.setActiveHole(_this.syntaxTree.pathForNode(moveTo));
-          }
-        }
-        if (evt.keyIdentifier === 'Right') {
-          moveTo = _this.syntaxTree.nextSibling(_this._activeHole.nodeModel);
-          if (moveTo != null) {
-            _this.setActiveHole(_this.syntaxTree.pathForNode(moveTo));
-          }
-        }
-        if (evt.keyIdentifier === 'Left') {
-          moveTo = _this.syntaxTree.previousSibling(_this._activeHole.nodeModel);
-          if (moveTo != null) {
-            return _this.setActiveHole(_this.syntaxTree.pathForNode(moveTo));
-          }
-        }
+      };
+    })(this));
+    Polymer.Gestures.add(document, 'down', (function(_this) {
+      return function(arg1) {
+        var detail;
+        detail = arg1.detail;
+        return _this._spawnFlowerPicker(_this._activeHole.path, detail);
       };
     })(this));
   }
 
   App.prototype.setup = function() {
-    var endFlowerPicker, isFlowerPickerActive, onFlowerPickerSelect, preventDefault, startFlowerPicker;
+    var endFlowerPicker, onFlowerPickerSelect, preventDefault, startFlowerPicker;
     this._flowerPicker = document.querySelector('#picker');
     this._textRoot = document.querySelector('#tree');
-    isFlowerPickerActive = false;
+    this._isFlowerPickerActive = false;
     preventDefault = function(evt) {
       return evt.preventDefault();
     };
     startFlowerPicker = (function(_this) {
       return function(evt) {
-        var holeCenter, holeElement, holeRect, inputPiece, node, pathToHole, scope, selectedRulesAsPetals;
-        isFlowerPickerActive = true;
-        _this._flowerPicker.style['pointer-events'] = 'auto';
+        var holeCenter, holeElement, holeRect, pathToHole;
         pathToHole = evt.detail.idPath;
-        node = _this.syntaxTree.navigate(pathToHole);
-        selectedRulesAsPetals = null;
-        if (node.holeInformation.isUserString) {
-          scope = _this;
-          inputPiece = new Input(node.holeInformation.id, node.holeInformation.pattern, node.holeInformation.quantifier);
-          selectedRulesAsPetals = [
-            {
-              model: new Expression([inputPiece]),
-              isLeaf: true,
-              type: 'input',
-              value: function(model, data) {
-                return {
-                  type: 'input',
-                  data: data,
-                  template: new Expression([new Literal(data)])
-                };
-              },
-              display: function(model, data) {
-                if ((data != null) && data.length > 0) {
-                  return (new Input(node.holeInformation.id, node.holeInformation.pattern, node.holeInformation.quantifier, data)).display();
-                } else {
-                  return (new Input(node.holeInformation.id, node.holeInformation.pattern, node.holeInformation.quantifier)).display();
-                }
-              }
-            }
-          ];
-        } else {
-          selectedRulesAsPetals = _this._rulesToPetals(_this.syntaxTree.grammar, [node.holeInformation.group]);
-        }
         holeElement = evt.detail.tree.navigate(pathToHole);
         if (holeElement == null) {
           throw new Error('Selected an invalid hole element at path', pathToHole);
@@ -112,20 +81,18 @@ App = (function() {
           x: holeRect.left + holeRect.width / 2,
           y: holeRect.top + holeRect.height / 2
         };
-        _this.setActiveHole(pathToHole);
-        _this._flowerPicker.petals = selectedRulesAsPetals;
-        return _this._flowerPicker.start(holeCenter);
+        return _this._spawnFlowerPicker(pathToHole, holeCenter);
       };
     })(this);
     endFlowerPicker = (function(_this) {
       return function(evt) {
-        if (isFlowerPickerActive) {
+        if (_this._isFlowerPickerActive) {
           _this._flowerPicker.style['pointer-events'] = 'none';
           _this._flowerPicker.finish({
             x: evt.detail.x,
             y: evt.detail.y
           });
-          return isFlowerPickerActive = false;
+          return _this._isFlowerPickerActive = false;
         }
       };
     })(this);
@@ -138,7 +105,7 @@ App = (function() {
       };
     })(this);
     this._textRoot.addEventListener('requested-fill', startFlowerPicker);
-    Polymer.Gestures.add(this._textRoot, 'up', endFlowerPicker);
+    Polymer.Gestures.add(document, 'up', endFlowerPicker);
     this._flowerPicker.addEventListener('selected', onFlowerPickerSelect);
     Polymer.Base.setScrollDirection('none', this._textRoot);
     return Polymer.Gestures.add(this._flowerPicker, 'track', preventDefault);
@@ -255,6 +222,52 @@ App = (function() {
     } else {
       return result;
     }
+  };
+
+  App.prototype._spawnFlowerPicker = function(pathToHole, spawnCenter) {
+    var inputPiece, node, scope, selectedRulesAsPetals;
+    this._isFlowerPickerActive = true;
+    this._flowerPicker.style['pointer-events'] = 'auto';
+    this.setActiveHole(pathToHole);
+    selectedRulesAsPetals = null;
+    node = this.syntaxTree.navigate(pathToHole);
+    if (node.holeInformation.isUserString) {
+
+      /*
+      TODO
+      User string holes should not be modified via the picker.
+      
+      Insert the template, and optionally immediately focus on the
+      user string hole(s), with keyboard input.
+       */
+      scope = this;
+      inputPiece = new Input(node.holeInformation.id, node.holeInformation.pattern, node.holeInformation.quantifier);
+      selectedRulesAsPetals = [
+        {
+          model: new Expression([inputPiece]),
+          isLeaf: true,
+          type: 'input',
+          value: function(model, data) {
+            return {
+              type: 'input',
+              data: data,
+              template: new Expression([new Literal(data)])
+            };
+          },
+          display: function(model, data) {
+            if ((data != null) && data.length > 0) {
+              return (new Input(node.holeInformation.id, node.holeInformation.pattern, node.holeInformation.quantifier, data)).display();
+            } else {
+              return (new Input(node.holeInformation.id, node.holeInformation.pattern, node.holeInformation.quantifier)).display();
+            }
+          }
+        }
+      ];
+    } else {
+      selectedRulesAsPetals = this._rulesToPetals(this.syntaxTree.grammar, [node.holeInformation.group]);
+    }
+    this._flowerPicker.petals = selectedRulesAsPetals;
+    return this._flowerPicker.start(spawnCenter);
   };
 
   return App;
