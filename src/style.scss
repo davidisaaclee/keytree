@@ -9,10 +9,10 @@ $background-color: rgba(180, 90, 90, 1);
   -ms-user-select: $option;
 }
 
-body {
-  // background-color: rgba(100, 100, 100, 1);
-  background-color: $background-color;
-}
+// body {
+//   // background-color: rgba(100, 100, 100, 1);
+//   background-color: $background-color;
+// }
 
 #container {
   display: flex;
@@ -29,7 +29,7 @@ body {
     width: 100%;
     height: 100%;
 
-    #picker {
+    #picker /deep/ {
       & * {
         z-index: 1000;
       }
@@ -48,6 +48,16 @@ body {
       .petal {
         text-align: center;
       }
+    }
+
+    #user-input-box /deep/ {
+      pointer-events: auto;
+      z-index: 1000;
+      position: absolute;
+      left: 0;
+      top: 0;
+      // width: 500px;
+      // height: 500px;
     }
   }
 
@@ -89,62 +99,64 @@ body {
       }
     }
 
-    .node {
-      display: inline-block;
+    text-root /deep/ {
+      .node {
+        display: inline-block;
 
-      margin: 2px 1px;
-      padding: 2px 4px;
+        margin: 2px 1px;
+        padding: 2px 4px;
 
-      border-radius: 10px;
-      background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        background-color: rgba(255, 255, 255, 0.1);
 
-      white-space: pre-wrap;
-      tab-size: 30px;
-      font-family: 'Source Code Pro', monospace;
-      font-size: $code-font-size;
-      color: #333;
+        white-space: pre-wrap;
+        tab-size: 30px;
+        font-family: 'Source Code Pro', monospace;
+        font-size: $code-font-size;
+        color: #333;
 
-      transition: all 0.1s ease;
+        transition: all 0.1s ease;
 
-      span {
-        vertical-align: middle;
+        span {
+          vertical-align: middle;
+        }
       }
+
+      .active-node {
+        background-color: rgba(255, 255, 255, 0.4);
+        // border: 1px solid green;
+      }
+
+      .action {
+        background-color: rgba(255, 255, 255, 0.5);
+        border-radius: 100%;
+
+        margin: 0 0.125em;
+        width: 1em;
+        box-shadow: 0px 0px 3px rgba(0, 0, 0, 0.2);
+
+        cursor: pointer;
+      }
+
+      .action:active {
+        background-color: rgba(255, 255, 255, 0.8);
+      }
+
+      .hole {
+        // display: flex;
+        // flex-direction: row;
+        // align-items: center;
+      }
+
+      .empty {
+        color: #666;
+      }
+
+      // .empty:after {
+      //   content: '_';
+      //   visibility: hidden;
+      // }
+
     }
-
-    .active-node {
-      background-color: rgba(255, 255, 255, 0.4);
-      // border: 1px solid green;
-    }
-
-    .action {
-      background-color: rgba(255, 255, 255, 0.5);
-      border-radius: 100%;
-
-      margin: 0 0.125em;
-      width: 1em;
-      box-shadow: 0px 0px 3px rgba(0, 0, 0, 0.2);
-
-      cursor: pointer;
-    }
-
-    .action:active {
-      background-color: rgba(255, 255, 255, 0.8);
-    }
-
-    .hole {
-      // display: flex;
-      // flex-direction: row;
-      // align-items: center;
-    }
-
-    .empty {
-      color: #666;
-    }
-
-    // .empty:after {
-    //   content: '_';
-    //   visibility: hidden;
-    // }
-
   }
 }

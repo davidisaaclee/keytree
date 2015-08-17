@@ -9,17 +9,25 @@ html(lang="en")
                   user-scalable=no")
     script(src='../bower_components/webcomponentsjs/webcomponents-lite.js')
     link(rel='import', href='../bower_components/polymer/polymer.html')
-    link(rel='import', href='../bower_components/text-tree/build/text-root.html')
-    link(rel='import', href='../bower_components/flower-picker/build/flower-picker.html')
-    link(rel='import', href='../bower_components/disclose-section/disclose-section.html')
+    link(rel='import', href='KeyTree.html')
+    //- link(rel='import', href='../bower_components/text-tree/build/text-root.html')
+    //- link(rel='import', href='../bower_components/flower-picker/build/flower-picker.html')
+    //- link(rel='import', href='../bower_components/disclose-section/disclose-section.html')
+    //- link(rel='import', href='../bower_components/input-suggest/input-suggest.html')
 
-    link(rel='stylesheet', href='style.css')
+    //- link(rel='stylesheet', href='style.css')
+    style.
+      body {
+        background-color: rgba(180, 90, 90, 1);
+      }
   body(unresolved)
-    #container
+    key-tree
+    //- #container
       #overlay
         flower-picker#picker(radius="100",
                              on-selected="handleSelected",
                              stay-within="container")
+        input-suggest#user-input-box(autoreset, hidden)
       #app
         disclose-section#grammar-edit
           span(trigger) Edit grammar...
@@ -33,4 +41,4 @@ html(lang="en")
             div: button(id="setGrammar") Set grammar
         text-root#tree
         div: button#render Render
-    script(src='app.js')
+    //- script(src='app.js')

@@ -1,4 +1,4 @@
-#container {
+<link rel="import" href="../bower_components/polymer/polymer.html"/><link rel="import" href="../bower_components/text-tree/build/text-root.html"/><link rel="import" href="../bower_components/flower-picker/build/flower-picker.html"/><link rel="import" href="../bower_components/disclose-section/disclose-section.html"/><link rel="import" href="../bower_components/input-suggest/input-suggest.html"/><dom-module id="key-tree"><style is="custom-style">#container {
   display: flex;
   display: -webkit-flex;
   height: 100vh; }
@@ -83,3 +83,4 @@
       background-color: rgba(255, 255, 255, 0.8); }
     #container #app text-root /deep/ .empty {
       color: #666; }
+</style><template><div id="container"><div id="overlay"><flower-picker id="picker" radius="100"></flower-picker><input-suggest id="user-input-box" autoreset="autoreset" hidden="hidden"></input-suggest></div><div id="app"><disclose-section id="grammar-edit"><span trigger="trigger">Edit grammar...</span><div content="content"><p>Learn how to write your own grammar at the <a href="https://github.com/davidisaaclee/keytree#grammars" target="_blank">GitHub repo.</a></p><textarea id="grammarText" name="grammarText" cols="80" rows="20"></textarea><div><button id="setGrammar">Set grammar</button></div></div></disclose-section><text-root id="tree"></text-root><div><button id="render">Render</button></div></div></div></template></dom-module><script src="app.js"></script>

@@ -81,35 +81,25 @@ gulp.task('watch-test', ['build', 'watch-scripts']);
 
 gulp.task('coffee', function () {
   var bundle = browserify(_.extend(options.coffee.options, {
-    entries: './app.coffee',
+    entries: './KeyTree.coffee',
     outputName: 'app.js',
     transform: [coffeeify]
   })).bundle();
 
   bundle
     .on('error', notify.onError({
-      "title": "CoffeeScript error",
+      title: "CoffeeScript error",
       message: '<%= error.message %>',
-      "sound": "Frog", // case sensitive
-      "icon": false
+      sound: "Frog", // case sensitive
+      icon: false
     }))
     .on('error', function (error) {
       console.log(error);
     });
 
-  // var c = coffeeify();
-  // c.on('error', function (err) {
-  //   console.log(err);
-  //   c.end();
-  // });
-
   return bundle
     .pipe(source('app.js'))
     .pipe(buffer())
-    .pipe(sourcemaps.init({loadMaps: true}))
-    // .pipe(coffeeify())
-    // .pipe(c)
-    .pipe(sourcemaps.write('./'))
     .pipe(gulp.dest('./build'));
 });
 
@@ -130,7 +120,7 @@ gulp.task('sass', function () {
     .pipe(gulp.dest(options.sass.dst));
 });
 
-gulp.task('jade', function () {
+gulp.task('jade', ['sass'], function () {
   return gulp.src(options.jade.src)
     .pipe(jade(options.jade.options))
       .on('error', notify.onError({
@@ -155,11 +145,6 @@ gulp.task('build-tests', ['build'], function () {
     .pipe(gulp.dest('./test'));
 });
 
-// gulp.task('jasmine', ['build-tests', 'build'], function () {
-//   return gulp.src(options.jasmine.src)
-//     .pipe(jasmine(options.jasmine.options));
-// });
-
 gulp.task('jasmine', function () {
   return gulp.src(options.jasmine.src)
     .pipe(watch(options.jasmine.src))
@@ -176,7 +161,7 @@ gulp.task('watch-scripts', function () {
 gulp.task('watch', function () {
   gulp.watch(options.copy.src, ['copy']);
   gulp.watch(options.coffee.src, ['coffee']);
-  gulp.watch(options.sass.src, ['sass']);
+  gulp.watch(options.sass.src, ['sass', 'jade']);
   gulp.watch(options.jade.src, ['jade']);
 });
 

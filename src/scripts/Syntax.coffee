@@ -59,12 +59,16 @@ class SyntaxTree
     @_baseNode = Node.makeRoot (new Expression [new Hole 'start', startGroup, 'one'])
     @root = _.first _.values @_baseNode.childrenMap
     @root.routeEvents this
+    @userStrings = {}
 
   # root :: Node
   root: undefined
 
   # grammar :: Grammar
   grammar: undefined
+
+  # userStrings :: { <kind>: [ { display: String } ] }
+  userStrings: undefined
 
   # Returns the `Node` at `path`, or `null` if no such node.
   # Should handle variadic IDs ("<identifier>-<clone number>").
@@ -112,40 +116,12 @@ class SyntaxTree
 
   parentOf: (node) -> node._parent
 
-
-  # # If `node` has children, return the first child.
-  # # If `node` has no children, but has a succeeding sibling,
-  # #   return that sibling.
-  # # Otherwise, return `node`.
-  # nextNode: (node) ->
-  #   children = node.children()
-  #   nextSibling = (nd) ->
-  #     siblings = nd._parent?.children()
-  #     for i in [0..siblings.length]
-  #       if siblings[i] is nd
-  #         return siblings[i + 1]
-  #   switch
-  #     when children.length > 0 then _.head children
-  #     when (nextSibling node)? then (nextSibling node)
-  #     else node
-
-
-  # # If `node` has a preceding sibling, return that sibling.
-  # # If `node` has no preceding sibling, but has a parent,
-  # #   return the node's parent.
-  # # Otherwise, return `node`.
-  # previousNode: (node) ->
-  #   children = node.children()
-  #   previousSibling = (nd) ->
-  #     siblings = nd._parent?.children()
-  #     for i in [0..siblings.length]
-  #       if siblings[i] is nd
-  #         return siblings[i - 1]
-  #   switch
-  #     when (previousSibling node)? then (previousSibling node)
-  #     when node._parent? then node._parent
-  #     else node
-
+  registerUserString: (kind, text) ->
+    if not @userStrings[kind]?
+      @userStrings[kind] = []
+    model = display: text
+    @userStrings[kind].push model
+    return model
 
   pathForNode: (node) ->
     if node._parent?
