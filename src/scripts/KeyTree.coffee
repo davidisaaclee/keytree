@@ -96,13 +96,15 @@ Polymer
     (new ModeManager this)
       .add 'idle',
 
+        parent: null
+
         canTransitionTo: ['pick']
 
-        accept: (accept) ->
-          start: () =>
-          stop: () =>
+        checkAccept: (acceptFn) ->
+          start: () ->
+          stop: () ->
 
-        active: () ->
+        active: (reclaim) ->
           handleCursorMovement = (evt) =>
             moveTo = switch evt.keyIdentifier
               when 'Up'
@@ -116,15 +118,24 @@ Polymer
             if moveTo?
               @setActiveHole @syntaxTree.pathForNode moveTo
 
-          start: () =>
+          start: (release) ->
             window.addEventListener 'keyup', handleCursorMovement
+            Polymer.Gestures.remove window, 'up', reclaim
 
-          stop: () =>
+          stop: () ->
             window.removeEventListener 'keyup', handleCursorMovement
 
+          background: (release) ->
+            window.removeEventListener 'keyup', handleCursorMovement
+            Polymer.Gestures.add window, 'up', reclaim
+
+
       .add 'pick',
+        parent: 'idle'
+
         canTransitionTo: ['idle']
-        accept: (accept) ->
+
+        checkAccept: (accept) ->
           startFlowerPicker = (evt) =>
             pathToHole = evt.detail.idPath
             holeElement = evt.detail.tree.navigate pathToHole
@@ -143,11 +154,12 @@ Polymer
             @_spawnFlowerPicker pathToHole, holeCenter
             do accept
 
-          start: () =>
+          start: () ->
             @_textRoot.addEventListener 'requested-fill', startFlowerPicker
-          stop: () =>
+          stop: () ->
             @_textRoot.removeEventListener 'requested-fill', startFlowerPicker
-        active: () ->
+
+        active: (reclaim) ->
           preventDefault = (evt) -> do evt.preventDefault
           onFlowerPickerSelect = (event) =>
             model = event.detail.value
@@ -159,14 +171,61 @@ Polymer
             @_flowerPicker.style['pointer-events'] = 'none'
             @_flowerPicker.finish {x: evt.detail.x, y: evt.detail.y}
 
-          start: () =>
+          start: () ->
             Polymer.Gestures.add @_flowerPicker, 'track', preventDefault
             @_flowerPicker.addEventListener 'selected', onFlowerPickerSelect
             Polymer.Gestures.add document, 'up', endFlowerPicker
-          stop: () =>
+          stop: () ->
             Polymer.Gestures.remove @_flowerPicker, 'track', preventDefault
             @_flowerPicker.removeEventListener 'selected', onFlowerPickerSelect
             Polymer.Gestures.remove document, 'up', endFlowerPicker
+
+
+
+        # canTransitionTo: ['idle']
+        # accept: (accept) ->
+        #   startFlowerPicker = (evt) =>
+        #     pathToHole = evt.detail.idPath
+        #     holeElement = evt.detail.tree.navigate pathToHole
+        #     if not holeElement?
+        #       throw new Error ('Selected an invalid hole element at path' + pathToHole)
+
+        #     # FIXME: Getting the bounding client rect here seems to be buggy
+        #     #   on Safari - pinch-zooming in the webpage changes the location
+        #     #   of the rect. (This is not the behavior in Google Chrome.)
+        #     # For now, let's just disable zooming... I guess.
+        #     holeRect = holeElement.getBoundingClientRect()
+        #     holeCenter =
+        #       x: holeRect.left + holeRect.width / 2
+        #       y: holeRect.top + holeRect.height / 2
+
+        #     @_spawnFlowerPicker pathToHole, holeCenter
+        #     do accept
+
+        #   start: () =>
+        #     @_textRoot.addEventListener 'requested-fill', startFlowerPicker
+        #   stop: () =>
+        #     @_textRoot.removeEventListener 'requested-fill', startFlowerPicker
+        # active: () ->
+        #   preventDefault = (evt) -> do evt.preventDefault
+        #   onFlowerPickerSelect = (event) =>
+        #     model = event.detail.value
+        #     expr =
+        #       if model.type is 'input'
+        #       then model.template
+        #       else @syntaxTree.grammar.makeExpression model.group, model.identifier, model.data
+        #   endFlowerPicker = (evt) =>
+        #     @_flowerPicker.style['pointer-events'] = 'none'
+        #     @_flowerPicker.finish {x: evt.detail.x, y: evt.detail.y}
+
+        #   start: () =>
+        #     Polymer.Gestures.add @_flowerPicker, 'track', preventDefault
+        #     @_flowerPicker.addEventListener 'selected', onFlowerPickerSelect
+        #     Polymer.Gestures.add document, 'up', endFlowerPicker
+        #   stop: () =>
+        #     Polymer.Gestures.remove @_flowerPicker, 'track', preventDefault
+        #     @_flowerPicker.removeEventListener 'selected', onFlowerPickerSelect
+        #     Polymer.Gestures.remove document, 'up', endFlowerPicker
 
 
   ready: () ->

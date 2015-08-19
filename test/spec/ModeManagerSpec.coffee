@@ -103,10 +103,12 @@ describe 'intermediate mode manager', () ->
             transitions.left = acceptFn
           stop: () ->
             transitions.left = null
-        active: () ->
-          start: () ->
+        active: (release, reclaim) ->
+          start: (data) ->
             @currentMode = 'left'
+            @foo = data?.foo
           stop: () ->
+            @foo = undefined
             @currentMode = 'none'
       .add 'center',
         canTransitionTo: ['left', 'right']
@@ -115,7 +117,7 @@ describe 'intermediate mode manager', () ->
             transitions.center = acceptFn
           stop: () ->
             transitions.center = null
-        active: () ->
+        active: (release, reclaim) ->
           start: () ->
             @currentMode = 'center'
           stop: () ->
@@ -127,7 +129,7 @@ describe 'intermediate mode manager', () ->
             transitions.right = acceptFn
           stop: () ->
             transitions.right = null
-        active: () ->
+        active: (release, reclaim) ->
           start: () ->
             @currentMode = 'right'
           stop: () ->
@@ -163,6 +165,20 @@ describe 'intermediate mode manager', () ->
     expect @transitions.right
       .toBeNull()
 
+  it 'can pass data', () ->
+    @manager.start 'center'
+
+    expect @context.foo
+      .toBeUndefined()
+
+    @transitions.left foo: 'passed'
+    expect @context.foo
+      .toBe 'passed'
+
+    do @transitions.center
+    expect @context.foo
+      .toBeUndefined()
+
 describe 'layered mode manager', () ->
   beforeEach () ->
     @context =
@@ -179,12 +195,12 @@ describe 'layered mode manager', () ->
             @transitions.left = acceptFn
           stop: () ->
             @transitions.left = null
-        active: () ->
+        active: (releaseFn, reclaimFn) ->
           start: () ->
             @topMode = 'left'
           stop: () ->
             @topMode = 'none'
-          background: (reclaimFn, releaseFn) ->
+          background: () ->
             @transitions.reclaimLeft = reclaimFn
       .add 'right',
         canTransitionTo: ['left']
@@ -206,14 +222,14 @@ describe 'layered mode manager', () ->
             @transitions.leftright = acceptFn
           stop: () ->
             @transitions.leftright = null
-        active: () ->
-          start: (releaseFn) ->
+        active: (releaseFn, reclaimFn) ->
+          start: () ->
             @topMode = 'leftright'
             @transitions.releaseLR = releaseFn
             @leftrightPaused = false
           stop: () ->
             @topMode = 'none'
-          background: (reclaimFn, releaseFn) ->
+          background: () ->
             @leftrightPaused = true
             @transitions.reclaimLR = reclaimFn
             @transitions.popToLeft = releaseFn
@@ -225,8 +241,8 @@ describe 'layered mode manager', () ->
             @transitions.leftleft = acceptFn
           stop: () ->
             @transitions.leftleft = null
-        active: () ->
-          start: (releaseFn) ->
+        active: (releaseFn) ->
+          start: (data) ->
             @topMode = 'leftleft'
             @transitions.release = releaseFn
             @transitions.reclaim = null
@@ -240,8 +256,8 @@ describe 'layered mode manager', () ->
           start: () ->
             @transitions.acceptLRS = acceptFn
           stop: () ->
-        active: () ->
-          start: (releaseFn) ->
+        active: (releaseFn) ->
+          start: () ->
             @transitions.releaseLRS = releaseFn
           stop: () ->
             @transitions.releaseLRS = null
@@ -278,6 +294,11 @@ describe 'layered mode manager', () ->
       .toBe 'leftleft'
 
     do @context.transitions.release
+    expect @manager.mode
+      .toBe 'left'
+
+    do @context.transitions.leftright
+    do @context.transitions.reclaimLeft
     expect @manager.mode
       .toBe 'left'
 

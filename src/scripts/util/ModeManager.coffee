@@ -22,7 +22,7 @@ class ModeManager
   constructor: (@context) ->
     @_modes = {}
     Object.defineProperty this, 'mode',
-      get: () -> @_activeMode.name
+      get: () -> if @_activeMode then @_activeMode.name else null
 
   # Begin the manager's transitions on the specified mode.
   start: (initialMode) ->
@@ -86,7 +86,7 @@ class ModeManager
     acceptResult = _.defaults ((@_bind options.checkAccept) accept),
       start: () ->
       stop: () ->
-    activeResult = _.defaults (do (@_bind options.active)),
+    activeResult = _.defaults ((@_bind options.active) release, reclaim),
       start: () ->
       stop: () ->
       background: () ->
@@ -97,8 +97,8 @@ class ModeManager
       canTransitionTo: options.canTransitionTo
       open: context._bind acceptResult.start
       close: context._bind acceptResult.stop
-      before: context._bind activeResult.start, release
-      background: context._bind activeResult.background, reclaim, release
+      before: context._bind activeResult.start
+      background: context._bind activeResult.background
       after: context._bind activeResult.stop
 
     return this
@@ -107,7 +107,7 @@ class ModeManager
   get: (modeName) -> @_modes[modeName]
 
   # Set the active mode, performing teardown and setup.
-  setMode: (modeName, data = {}) ->
+  setMode: (modeName, data) ->
     if @_activeMode? and modeName is @_activeMode.name
       return
 

@@ -14236,7 +14236,11 @@ ModeManager = (function() {
     this._modes = {};
     Object.defineProperty(this, 'mode', {
       get: function() {
-        return this._activeMode.name;
+        if (this._activeMode) {
+          return this._activeMode.name;
+        } else {
+          return null;
+        }
       }
     });
   }
@@ -14332,7 +14336,7 @@ ModeManager = (function() {
       start: function() {},
       stop: function() {}
     });
-    activeResult = _.defaults((this._bind(options.active))(), {
+    activeResult = _.defaults((this._bind(options.active))(release, reclaim), {
       start: function() {},
       stop: function() {},
       background: function() {}
@@ -14343,8 +14347,8 @@ ModeManager = (function() {
       canTransitionTo: options.canTransitionTo,
       open: context._bind(acceptResult.start),
       close: context._bind(acceptResult.stop),
-      before: context._bind(activeResult.start, release),
-      background: context._bind(activeResult.background, reclaim, release),
+      before: context._bind(activeResult.start),
+      background: context._bind(activeResult.background),
       after: context._bind(activeResult.stop)
     });
     return this;
@@ -14355,9 +14359,6 @@ ModeManager = (function() {
   };
 
   ModeManager.prototype.setMode = function(modeName, data) {
-    if (data == null) {
-      data = {};
-    }
     if ((this._activeMode != null) && modeName === this._activeMode.name) {
       return;
     }
@@ -14551,12 +14552,14 @@ describe('intermediate mode manager', function() {
           }
         };
       },
-      active: function() {
+      active: function(release, reclaim) {
         return {
-          start: function() {
-            return this.currentMode = 'left';
+          start: function(data) {
+            this.currentMode = 'left';
+            return this.foo = data != null ? data.foo : void 0;
           },
           stop: function() {
+            this.foo = void 0;
             return this.currentMode = 'none';
           }
         };
@@ -14573,7 +14576,7 @@ describe('intermediate mode manager', function() {
           }
         };
       },
-      active: function() {
+      active: function(release, reclaim) {
         return {
           start: function() {
             return this.currentMode = 'center';
@@ -14595,7 +14598,7 @@ describe('intermediate mode manager', function() {
           }
         };
       },
-      active: function() {
+      active: function(release, reclaim) {
         return {
           start: function() {
             return this.currentMode = 'right';
@@ -14610,7 +14613,7 @@ describe('intermediate mode manager', function() {
   afterEach(function() {
     return this.manager.stop();
   });
-  return it('can switch modes', function() {
+  it('can switch modes', function() {
     this.manager.start('left');
     expect(this.context.currentMode).toBe('left');
     this.transitions.center();
@@ -14623,6 +14626,16 @@ describe('intermediate mode manager', function() {
     this.manager.stop();
     expect(this.transitions.left).toBeNull();
     return expect(this.transitions.right).toBeNull();
+  });
+  return it('can pass data', function() {
+    this.manager.start('center');
+    expect(this.context.foo).toBeUndefined();
+    this.transitions.left({
+      foo: 'passed'
+    });
+    expect(this.context.foo).toBe('passed');
+    this.transitions.center();
+    return expect(this.context.foo).toBeUndefined();
   });
 });
 
@@ -14645,7 +14658,7 @@ describe('layered mode manager', function() {
           }
         };
       },
-      active: function() {
+      active: function(releaseFn, reclaimFn) {
         return {
           start: function() {
             return this.topMode = 'left';
@@ -14653,7 +14666,7 @@ describe('layered mode manager', function() {
           stop: function() {
             return this.topMode = 'none';
           },
-          background: function(reclaimFn, releaseFn) {
+          background: function() {
             return this.transitions.reclaimLeft = reclaimFn;
           }
         };
@@ -14693,9 +14706,9 @@ describe('layered mode manager', function() {
           }
         };
       },
-      active: function() {
+      active: function(releaseFn, reclaimFn) {
         return {
-          start: function(releaseFn) {
+          start: function() {
             this.topMode = 'leftright';
             this.transitions.releaseLR = releaseFn;
             return this.leftrightPaused = false;
@@ -14703,7 +14716,7 @@ describe('layered mode manager', function() {
           stop: function() {
             return this.topMode = 'none';
           },
-          background: function(reclaimFn, releaseFn) {
+          background: function() {
             this.leftrightPaused = true;
             this.transitions.reclaimLR = reclaimFn;
             return this.transitions.popToLeft = releaseFn;
@@ -14723,9 +14736,9 @@ describe('layered mode manager', function() {
           }
         };
       },
-      active: function() {
+      active: function(releaseFn) {
         return {
-          start: function(releaseFn) {
+          start: function(data) {
             this.topMode = 'leftleft';
             this.transitions.release = releaseFn;
             this.transitions.reclaim = null;
@@ -14747,9 +14760,9 @@ describe('layered mode manager', function() {
           stop: function() {}
         };
       },
-      active: function() {
+      active: function(releaseFn) {
         return {
-          start: function(releaseFn) {
+          start: function() {
             return this.transitions.releaseLRS = releaseFn;
           },
           stop: function() {
@@ -14776,6 +14789,9 @@ describe('layered mode manager', function() {
     this.context.transitions.leftleft();
     expect(this.manager.mode).toBe('leftleft');
     this.context.transitions.release();
+    expect(this.manager.mode).toBe('left');
+    this.context.transitions.leftright();
+    this.context.transitions.reclaimLeft();
     return expect(this.manager.mode).toBe('left');
   });
   it('can jump layers', function() {
