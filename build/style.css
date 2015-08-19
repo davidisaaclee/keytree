@@ -25,6 +25,7 @@
       #container #overlay #picker /deep/ .petal {
         text-align: center; }
     #container #overlay #user-input-box /deep/ {
+      visibility: hidden;
       pointer-events: auto;
       z-index: 1000;
       position: absolute;

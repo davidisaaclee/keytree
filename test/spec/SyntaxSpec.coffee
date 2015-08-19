@@ -135,11 +135,19 @@ describe 'syntax trees', () ->
       .toBeDefined()
     expect digitsInfo.instances.length
       .toBe 1
-    expect digitsInfo.node()
-      .toBe digitsInfo.instances[0]
-    expect digitsInfo.node().parent
+
+    # The `node()` endpoint is kind of silly.
+    #
+    # expect digitsInfo.node()
+    #   .toBe digitsInfo.instances[0]
+    # expect digitsInfo.node().parent
+    #   .toBe @tree.root
+    # expect digitsInfo.node().isFilled
+    #   .toBe false
+
+    expect digitsInfo.instances[0].parent
       .toBe @tree.root
-    expect digitsInfo.node().isFilled
+    expect digitsInfo.instances[0].isFilled
       .toBe false
 
   it 'can navigate from intermediate', () ->

@@ -1,8 +1,10 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 require('spec/SyntaxSpec');
 
+require('spec/ModeManagerSpec');
 
-},{"spec/SyntaxSpec":8}],2:[function(require,module,exports){
+
+},{"spec/ModeManagerSpec":9,"spec/SyntaxSpec":10}],2:[function(require,module,exports){
 (function (global){
 /**
  * @license
@@ -12359,7 +12361,7 @@ require('spec/SyntaxSpec');
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
 },{}],3:[function(require,module,exports){
-var Expression, Grammar, Hole, Literal, Piece, Subexpression, _, match,
+var Expression, Grammar, Hole, Input, Literal, Piece, Subexpression, _, match,
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
 
@@ -12394,8 +12396,20 @@ Expression = (function() {
     this.pieces = pieces;
   }
 
+
+  /*
+  Creates a new instance of this Expression, with applied data.
+   */
+
   Expression.prototype.withData = function(data) {
-    return console.log('withData() not yet implemented.');
+    return new Expression(this.pieces.map(function(pc) {
+      switch (pc.type) {
+        case 'input':
+          return pc.withData(data);
+        default:
+          return pc;
+      }
+    }));
   };
 
   Expression.prototype.display = function() {
@@ -12430,7 +12444,7 @@ Piece = (function() {
   };
 
   Piece.prototype.display = function() {
-    return console.log('display() not overriden for this Piece:', this);
+    return console.warn('display() not overriden for this Piece:', this);
   };
 
   return Piece;
@@ -12478,6 +12492,41 @@ Hole = (function(superClass) {
 
 })(Piece);
 
+Input = (function(superClass) {
+  extend(Input, superClass);
+
+  function Input(identifier, pattern, quantifier1, data1) {
+    this.identifier = identifier;
+    this.pattern = pattern;
+    this.quantifier = quantifier1;
+    this.data = data1 != null ? data1 : null;
+    this.type = 'input';
+    if (this.quantifier == null) {
+      this.quantifier = 'one';
+    }
+  }
+
+  Input.prototype.display = function() {
+    if (this.data != null) {
+      return this.data;
+    } else {
+      return "<" + this.identifier + ":" + this.pattern + ">";
+    }
+  };
+
+
+  /*
+  Creates a new `Input` piece with the supplied data.
+   */
+
+  Input.prototype.withData = function(data) {
+    return new Input(this.identifier, this.pattern, this.quantifier, data);
+  };
+
+  return Input;
+
+})(Piece);
+
 Subexpression = (function(superClass) {
   extend(Subexpression, superClass);
 
@@ -12505,11 +12554,12 @@ module.exports = {
   Piece: Piece,
   Literal: Literal,
   Hole: Hole,
+  Input: Input,
   Subexpression: Subexpression
 };
 
 
-},{"lodash":2,"util/match":6,"util/property":7}],4:[function(require,module,exports){
+},{"lodash":2,"util/match":7,"util/property":8}],4:[function(require,module,exports){
 var Expression, Grammar, Hole, Literal, Node, Piece, Subexpression, SyntaxTree, _, match, ref,
   bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   slice = [].slice;
@@ -12578,17 +12628,21 @@ SyntaxTree = (function() {
     this._baseNode = Node.makeRoot(new Expression([new Hole('start', startGroup, 'one')]));
     this.root = _.first(_.values(this._baseNode.childrenMap));
     this.root.routeEvents(this);
+    this.userStrings = {};
   }
 
   SyntaxTree.prototype.root = void 0;
 
   SyntaxTree.prototype.grammar = void 0;
 
+  SyntaxTree.prototype.userStrings = void 0;
+
   SyntaxTree.prototype.navigate = function(path, useNumericPath) {
     return this._baseNode.navigate(path, useNumericPath);
   };
 
   SyntaxTree.prototype.navigateExpression = function(path) {
+    console.warn('Called internal method `SyntaxTree::navgiateExpression()`.');
     return this._baseNode.navigateExpression(path);
   };
 
@@ -12623,15 +12677,55 @@ SyntaxTree = (function() {
     return this._baseNode.flatten();
   };
 
-  SyntaxTree.prototype.nextNode = function(node) {
-    if (_.any(node.holeList, function(arg) {
-      var value;
-      value = arg.value;
-      return value != null;
-    })) {
-      return node.holeList[0];
+  SyntaxTree.prototype.nextSibling = function(node) {
+    var i, j, ref1, ref2, siblings;
+    siblings = (ref1 = node._parent) != null ? ref1.children() : void 0;
+    for (i = j = 0, ref2 = siblings.length; 0 <= ref2 ? j <= ref2 : j >= ref2; i = 0 <= ref2 ? ++j : --j) {
+      if (siblings[i] === node) {
+        return siblings[i + 1];
+      }
+    }
+  };
+
+  SyntaxTree.prototype.previousSibling = function(node) {
+    var i, j, ref1, ref2, siblings;
+    siblings = (ref1 = node._parent) != null ? ref1.children() : void 0;
+    for (i = j = 0, ref2 = siblings.length; 0 <= ref2 ? j <= ref2 : j >= ref2; i = 0 <= ref2 ? ++j : --j) {
+      if (siblings[i] === node) {
+        return siblings[i - 1];
+      }
+    }
+  };
+
+  SyntaxTree.prototype.firstChildOf = function(node) {
+    return node.children()[0];
+  };
+
+  SyntaxTree.prototype.parentOf = function(node) {
+    return node._parent;
+  };
+
+  SyntaxTree.prototype.registerUserString = function(kind, text) {
+    var model;
+    if (this.userStrings[kind] == null) {
+      this.userStrings[kind] = [];
+    }
+    model = {
+      display: text
+    };
+    this.userStrings[kind].push(model);
+    return model;
+  };
+
+  SyntaxTree.prototype.pathForNode = function(node) {
+    if (node._parent != null) {
+      return slice.call(this.pathForNode(node._parent)).concat([node.instanceId]);
     } else {
-      return console.log(node);
+      if (node.instanceId != null) {
+        return [node.instanceId];
+      } else {
+        return [];
+      }
     }
   };
 
@@ -12728,6 +12822,9 @@ Node = (function() {
         return function(newValue) {
           _this._parent = newValue;
           if (_this._parent != null) {
+            if (_this._parent._holes[holeId] == null) {
+              throw new Error('ERROR: Attempted to fill non-existent hole.');
+            }
             return _this.holeInformation = _this._parent._holes[holeId];
           }
         };
@@ -12903,7 +13000,7 @@ Node = (function() {
             }
           } else {
             if (hd.index == null) {
-              console.log('navigateExpression() - Intermediate path element omitting index.', hd);
+              console.warn('navigateExpression() - Intermediate path element omitting index.', hd);
             }
             instance = outerInfo.instances[hd.index];
             if (instance == null) {
@@ -12929,7 +13026,23 @@ Node = (function() {
    */
 
   Node.prototype.render = function() {
-    return console.log('render() not implemented');
+    var helper;
+    return (helper = function(tree) {
+      return _(tree).reject({
+        type: 'action'
+      }).map(function(elm) {
+        switch (elm.type) {
+          case 'literal':
+            return elm.value;
+          case 'hole':
+            if (elm.isFilled) {
+              return helper(elm.value);
+            } else {
+              return "<" + elm.holeId + ">";
+            }
+        }
+      }).join('');
+    })(this.flatten());
   };
 
 
@@ -12943,24 +13056,17 @@ Node = (function() {
     if (this.template == null) {
       return [];
     }
-    iteratee = function(acc, arg) {
-      var r, type, value;
-      type = arg.type, value = arg.value;
-      switch (type) {
-        case 'hole-info':
-          acc.push.apply(acc, value.instances);
-          return acc;
-        case 'subexpr-info':
-          r = value.instances.map(function(inst) {
-            return inst.infoList.reduce(iteratee);
-          }).reduce((function(acc_, chldn) {
-            return acc_.push.apply(acc_, chldn);
-          }), []);
-          acc.push.apply(acc, r);
-          return acc;
+    iteratee = function(elm) {
+      switch (elm.type) {
+        case 'HoleInfo':
+          return elm.value.instances;
+        case 'SubexprInfo':
+          return _(elm.value.instances).map(function(inst) {
+            return _(inst.infoList).map(iteratee).flatten().value();
+          }).flatten().value();
       }
     };
-    return this._instanceInfo.infoList.reduce(iteratee, []);
+    return _(this._instanceInfo.infoList).map(iteratee).flatten().value();
   };
 
 
@@ -12979,14 +13085,22 @@ Node = (function() {
   HoleElement ::=
     type: 'hole'
     isFilled: Boolean
-    id: String
+    instanceId: String   # unique (within sequence) ID
+    holeId: String       # non-unique hole template ID
     value: [ReturnType]
+  
+  ActionElement ::=
+    type: 'action'
+    display: String
+    onAction: () ->
    */
 
   Node.prototype.flatten = function() {
-    var reduction;
+    var reduction, scope;
+    scope = this;
     reduction = function(info) {
       return function(acc, pc) {
+        var expandNode;
         if (acc == null) {
           acc = [];
         }
@@ -12998,19 +13112,53 @@ Node = (function() {
             });
             break;
           case 'hole':
+          case 'input':
             Array.prototype.push.apply(acc, info.holes[pc.identifier].instances.map(function(instance) {
               return {
                 type: 'hole',
                 isFilled: instance.isFilled,
-                id: instance.holeInformation.id,
+                holeId: instance.holeInformation.id,
+                instanceId: instance.instanceId,
                 value: instance.isFilled ? instance.flatten() : []
               };
             }));
+            expandNode = {
+              type: 'action',
+              display: '+',
+              onAction: function() {
+                return info.holes[pc.identifier].pushEmpty();
+              }
+            };
+            switch (pc.quantifier) {
+              case 'kleene':
+                acc.push(expandNode);
+                break;
+              case 'optional':
+                if (info.holes[pc.identifier].instances.length === 0) {
+                  acc.push(expandNode);
+                }
+            }
             break;
           case 'subexpression':
-            Array.prototype.push.apply(acc, info.subexpressions[pc.identifier].instances.map(function(instance) {
-              return pc.value.reduce(reduction(instance), acc);
-            }));
+            info.subexpressions[pc.identifier].instances.map(function(instance) {
+              return pc.expression.pieces.reduce(reduction(instance), acc);
+            });
+            expandNode = {
+              type: 'action',
+              display: '+',
+              onAction: function() {
+                return info.subexpressions[pc.identifier].pushEmpty();
+              }
+            };
+            switch (pc.quantifier) {
+              case 'kleene':
+                acc.push(expandNode);
+                break;
+              case 'optional':
+                if (info.subexpressions[pc.identifier].instances.length === 0) {
+                  acc.push(expandNode);
+                }
+            }
         }
         return acc;
       };
@@ -13059,7 +13207,7 @@ Node = (function() {
   Node.prototype._setTemplate = function(template) {
     var makeHoleInfo, makeInstanceInfo, parentNode;
     if (template == null) {
-      console.log('Node was supplied null template: ', this);
+      console.warn('Node was supplied null template: ', this);
       return;
     }
     this.isFilled = true;
@@ -13070,19 +13218,29 @@ Node = (function() {
       var subexprIndex;
       subexprIndex = 0;
       return function(acc, piece) {
-        var r;
+        var newSubPath;
         switch (piece.type) {
           case 'hole':
             acc[piece.identifier] = {
               id: piece.identifier,
+              isUserString: false,
               group: piece.group,
               quantifier: piece.quantifier,
               subexpressionPath: subexprPath
             };
             break;
           case 'subexpression':
-            r = makeHoleInfo(slice.call(subexprPath).concat([piece.identifier]));
-            piece.expression.pieces.reduce(r);
+            newSubPath = slice.call(subexprPath).concat([piece.identifier]);
+            piece.expression.pieces.reduce(makeHoleInfo(newSubPath), acc);
+            break;
+          case 'input':
+            acc[piece.identifier] = {
+              id: piece.identifier,
+              isUserString: true,
+              pattern: piece.pattern,
+              quantifier: piece.quantifier,
+              subexpressionPath: subexprPath
+            };
         }
         return acc;
       };
@@ -13095,13 +13253,14 @@ Node = (function() {
         <hole template id>: HoleInfo
       subexpressions:
         <subexpr template id>: SubexprInfo
-      infoList: {type: 'hole-info', value: HoleInfo}
-              | {type: 'subexpr-info', value: SubexprInfo}
+      infoList: {type: 'HoleInfo', value: HoleInfo}
+              | {type: 'SubexprInfo', value: SubexprInfo}
     
     HoleInfo ::=
       instances: [Node]
+      isUserString: false
       pushEmpty: () -> Node
-      node: () -> Node
+      lastInstance: () -> Node
     
     SubexprInfo ::=
       instances: [InstanceInfo]
@@ -13110,73 +13269,111 @@ Node = (function() {
     return this._instanceInfo = (makeInstanceInfo = function(expr, path) {
       var reduction;
       reduction = function(acc, elm) {
-        var holeInfo, subExprInfo, subId;
+        var holeInfo, subExprInfo, subId, userStringInfo;
         switch (elm.type) {
           case 'hole':
-            if (acc.holes == null) {
-              acc.holes = {};
-            }
             holeInfo = {
               instances: [],
-              pushEmpty: function() {
+              isUserString: false,
+              pushEmpty: function(quiet) {
                 var emptyNode, pathString;
+                if (quiet == null) {
+                  quiet = false;
+                }
                 emptyNode = new Node(parentNode, elm.identifier);
                 pathString = slice.call(path).concat([this.instances.length]).join('.');
                 emptyNode.instanceId = elm.identifier + "::" + pathString;
                 this.instances.push(emptyNode);
                 parentNode.childrenMap[emptyNode.instanceId] = emptyNode;
+                if (!quiet) {
+                  parentNode.dispatchEvent('changed');
+                }
                 return emptyNode;
               },
-              node: function() {
+              lastInstance: function() {
                 return this.instances[this.instances.length - 1];
               }
             };
             acc.holes[elm.identifier] = holeInfo;
             acc.infoList.push({
-              type: 'hole-info',
+              type: 'HoleInfo',
               value: holeInfo
             });
             if (elm.quantifier === 'one') {
-              holeInfo.pushEmpty();
+              holeInfo.pushEmpty(true);
             }
             break;
           case 'subexpression':
-            if (acc.subexpressions == null) {
-              acc.subexpressions = {};
-            }
             subId = elm.identifier;
             subExprInfo = {
               instances: [],
-              pushEmpty: function() {
+              pushEmpty: function(quiet) {
                 var instanceInfo;
+                if (quiet == null) {
+                  quiet = false;
+                }
                 instanceInfo = makeInstanceInfo(elm.expression, slice.call(path).concat([subId], [this.instances.length]));
                 this.instances.push(instanceInfo);
+                if (!quiet) {
+                  parentNode.dispatchEvent('changed');
+                }
                 return instanceInfo;
               }
             };
             acc.subexpressions[subId] = subExprInfo;
             acc.infoList.push({
-              type: 'subexpr-info',
+              type: 'SubexprInfo',
               value: subExprInfo
             });
             if (elm.quantifier === 'one') {
-              subExprInfo.pushEmpty();
+              subExprInfo.pushEmpty(true);
             }
+            break;
+          case 'input':
+            userStringInfo = {
+              instances: [],
+              isUserString: true,
+              pushEmpty: function(quiet) {
+                var emptyInstance, pathString;
+                if (quiet == null) {
+                  quiet = false;
+                }
+                emptyInstance = new Node(parentNode, elm.identifier);
+                pathString = slice.call(path).concat([this.instances.length]).join('.');
+                emptyInstance.instanceId = elm.identifier + "::" + pathString;
+                this.instances.push(emptyInstance);
+                parentNode.childrenMap[emptyInstance.instanceId] = emptyInstance;
+                if (!quiet) {
+                  parentNode.dispatchEvent('changed');
+                }
+                return emptyInstance;
+              }
+            };
+            acc.holes[elm.identifier] = userStringInfo;
+            acc.infoList.push({
+              type: 'HoleInfo',
+              value: userStringInfo
+            });
+            if (elm.quantifier === 'one') {
+              userStringInfo.pushEmpty(true);
+            }
+            break;
+          case 'literal':
+            (function() {})();
+            break;
+          default:
+            console.log(elm);
+            throw new Error('Invalid piece type on piece.');
         }
         return acc;
       };
       return expr.pieces.reduce(reduction, {
+        holes: {},
+        subexpressions: {},
+        userStrings: {},
         infoList: []
       });
     })(template, []);
-
-    /*
-    MUTABLE, IN-ORDER sequence of literals, holes, and subexpressions
-     (anything that can be quantifier'd)
-    for hole and subexpression elements:
-     the `value` property is always an array, holding the instances of that
-     piece as `Node`s.
-     */
   };
 
   return Node;
@@ -13189,7 +13386,7 @@ module.exports = {
 };
 
 
-},{"Grammar":3,"lodash":2,"util/match":6,"util/property":7}],5:[function(require,module,exports){
+},{"Grammar":3,"lodash":2,"util/match":7,"util/property":8}],5:[function(require,module,exports){
 module.exports = (function() {
   /*
    * Generated by PEG.js 0.8.0.
@@ -13273,25 +13470,30 @@ module.exports = (function() {
         peg$c17 = function(id, group) {
             return wrap('hole', group, id);
           },
-        peg$c18 = "(",
-        peg$c19 = { type: "literal", value: "(", description: "\"(\"" },
-        peg$c20 = ")",
-        peg$c21 = { type: "literal", value: ")", description: "\")\"" },
-        peg$c22 = function(expr) {
+        peg$c18 = ":\\",
+        peg$c19 = { type: "literal", value: ":\\", description: "\":\\\\\"" },
+        peg$c20 = function(id, pattern) {
+            return wrap('input', pattern, id);
+          },
+        peg$c21 = "(",
+        peg$c22 = { type: "literal", value: "(", description: "\"(\"" },
+        peg$c23 = ")",
+        peg$c24 = { type: "literal", value: ")", description: "\")\"" },
+        peg$c25 = function(expr) {
             // return wrap('subexpression', expr); // <- this doesn't work now
             expr.type = 'subexpression'
             return expr;
           },
-        peg$c23 = /^[a-z]/i,
-        peg$c24 = { type: "class", value: "[a-z]i", description: "[a-z]i" },
-        peg$c25 = "-",
-        peg$c26 = { type: "literal", value: "-", description: "\"-\"" },
-        peg$c27 = function(text) {
+        peg$c26 = /^[a-z]/i,
+        peg$c27 = { type: "class", value: "[a-z]i", description: "[a-z]i" },
+        peg$c28 = "-",
+        peg$c29 = { type: "literal", value: "-", description: "\"-\"" },
+        peg$c30 = function(text) {
             return concat(text);
           },
-        peg$c28 = /^[*?]/,
-        peg$c29 = { type: "class", value: "[*?]", description: "[*?]" },
-        peg$c30 = function(kind) {
+        peg$c31 = /^[*?]/,
+        peg$c32 = { type: "class", value: "[*?]", description: "[*?]" },
+        peg$c33 = function(kind) {
             var type = 'unknown'
             if (kind == '*') {
               type = 'kleene';
@@ -13301,20 +13503,20 @@ module.exports = (function() {
 
             return type;
           },
-        peg$c31 = { type: "other", description: "whitespace" },
-        peg$c32 = "\t",
-        peg$c33 = { type: "literal", value: "\t", description: "\"\\t\"" },
-        peg$c34 = "\x0B",
-        peg$c35 = { type: "literal", value: "\x0B", description: "\"\\x0B\"" },
-        peg$c36 = "\f",
-        peg$c37 = { type: "literal", value: "\f", description: "\"\\f\"" },
-        peg$c38 = " ",
-        peg$c39 = { type: "literal", value: " ", description: "\" \"" },
-        peg$c40 = "\xA0",
-        peg$c41 = { type: "literal", value: "\xA0", description: "\"\\xA0\"" },
-        peg$c42 = "\uFEFF",
-        peg$c43 = { type: "literal", value: "\uFEFF", description: "\"\\uFEFF\"" },
-        peg$c44 = function() { return 'whitespace' },
+        peg$c34 = { type: "other", description: "whitespace" },
+        peg$c35 = "\t",
+        peg$c36 = { type: "literal", value: "\t", description: "\"\\t\"" },
+        peg$c37 = "\x0B",
+        peg$c38 = { type: "literal", value: "\x0B", description: "\"\\x0B\"" },
+        peg$c39 = "\f",
+        peg$c40 = { type: "literal", value: "\f", description: "\"\\f\"" },
+        peg$c41 = " ",
+        peg$c42 = { type: "literal", value: " ", description: "\" \"" },
+        peg$c43 = "\xA0",
+        peg$c44 = { type: "literal", value: "\xA0", description: "\"\\xA0\"" },
+        peg$c45 = "\uFEFF",
+        peg$c46 = { type: "literal", value: "\uFEFF", description: "\"\\uFEFF\"" },
+        peg$c47 = function() { return 'whitespace' },
 
         peg$currPos          = 0,
         peg$reportedPos      = 0,
@@ -13561,6 +13763,9 @@ module.exports = (function() {
         s1 = peg$parsehole();
         if (s1 === peg$FAILED) {
           s1 = peg$parsegrouping();
+          if (s1 === peg$FAILED) {
+            s1 = peg$parseinput();
+          }
         }
       }
       if (s1 !== peg$FAILED) {
@@ -13705,30 +13910,89 @@ module.exports = (function() {
       return s0;
     }
 
+    function peg$parseinput() {
+      var s0, s1, s2, s3, s4, s5;
+
+      s0 = peg$currPos;
+      if (input.charCodeAt(peg$currPos) === 60) {
+        s1 = peg$c11;
+        peg$currPos++;
+      } else {
+        s1 = peg$FAILED;
+        if (peg$silentFails === 0) { peg$fail(peg$c12); }
+      }
+      if (s1 !== peg$FAILED) {
+        s2 = peg$parseidentifier();
+        if (s2 !== peg$FAILED) {
+          if (input.substr(peg$currPos, 2) === peg$c18) {
+            s3 = peg$c18;
+            peg$currPos += 2;
+          } else {
+            s3 = peg$FAILED;
+            if (peg$silentFails === 0) { peg$fail(peg$c19); }
+          }
+          if (s3 !== peg$FAILED) {
+            s4 = peg$parseidentifier();
+            if (s4 !== peg$FAILED) {
+              if (input.charCodeAt(peg$currPos) === 62) {
+                s5 = peg$c15;
+                peg$currPos++;
+              } else {
+                s5 = peg$FAILED;
+                if (peg$silentFails === 0) { peg$fail(peg$c16); }
+              }
+              if (s5 !== peg$FAILED) {
+                peg$reportedPos = s0;
+                s1 = peg$c20(s2, s4);
+                s0 = s1;
+              } else {
+                peg$currPos = s0;
+                s0 = peg$c1;
+              }
+            } else {
+              peg$currPos = s0;
+              s0 = peg$c1;
+            }
+          } else {
+            peg$currPos = s0;
+            s0 = peg$c1;
+          }
+        } else {
+          peg$currPos = s0;
+          s0 = peg$c1;
+        }
+      } else {
+        peg$currPos = s0;
+        s0 = peg$c1;
+      }
+
+      return s0;
+    }
+
     function peg$parsegrouping() {
       var s0, s1, s2, s3;
 
       s0 = peg$currPos;
       if (input.charCodeAt(peg$currPos) === 40) {
-        s1 = peg$c18;
+        s1 = peg$c21;
         peg$currPos++;
       } else {
         s1 = peg$FAILED;
-        if (peg$silentFails === 0) { peg$fail(peg$c19); }
+        if (peg$silentFails === 0) { peg$fail(peg$c22); }
       }
       if (s1 !== peg$FAILED) {
         s2 = peg$parseexpression();
         if (s2 !== peg$FAILED) {
           if (input.charCodeAt(peg$currPos) === 41) {
-            s3 = peg$c20;
+            s3 = peg$c23;
             peg$currPos++;
           } else {
             s3 = peg$FAILED;
-            if (peg$silentFails === 0) { peg$fail(peg$c21); }
+            if (peg$silentFails === 0) { peg$fail(peg$c24); }
           }
           if (s3 !== peg$FAILED) {
             peg$reportedPos = s0;
-            s1 = peg$c22(s2);
+            s1 = peg$c25(s2);
             s0 = s1;
           } else {
             peg$currPos = s0;
@@ -13751,39 +14015,39 @@ module.exports = (function() {
 
       s0 = peg$currPos;
       s1 = [];
-      if (peg$c23.test(input.charAt(peg$currPos))) {
+      if (peg$c26.test(input.charAt(peg$currPos))) {
         s2 = input.charAt(peg$currPos);
         peg$currPos++;
       } else {
         s2 = peg$FAILED;
-        if (peg$silentFails === 0) { peg$fail(peg$c24); }
+        if (peg$silentFails === 0) { peg$fail(peg$c27); }
       }
       if (s2 === peg$FAILED) {
         if (input.charCodeAt(peg$currPos) === 45) {
-          s2 = peg$c25;
+          s2 = peg$c28;
           peg$currPos++;
         } else {
           s2 = peg$FAILED;
-          if (peg$silentFails === 0) { peg$fail(peg$c26); }
+          if (peg$silentFails === 0) { peg$fail(peg$c29); }
         }
       }
       if (s2 !== peg$FAILED) {
         while (s2 !== peg$FAILED) {
           s1.push(s2);
-          if (peg$c23.test(input.charAt(peg$currPos))) {
+          if (peg$c26.test(input.charAt(peg$currPos))) {
             s2 = input.charAt(peg$currPos);
             peg$currPos++;
           } else {
             s2 = peg$FAILED;
-            if (peg$silentFails === 0) { peg$fail(peg$c24); }
+            if (peg$silentFails === 0) { peg$fail(peg$c27); }
           }
           if (s2 === peg$FAILED) {
             if (input.charCodeAt(peg$currPos) === 45) {
-              s2 = peg$c25;
+              s2 = peg$c28;
               peg$currPos++;
             } else {
               s2 = peg$FAILED;
-              if (peg$silentFails === 0) { peg$fail(peg$c26); }
+              if (peg$silentFails === 0) { peg$fail(peg$c29); }
             }
           }
         }
@@ -13792,7 +14056,7 @@ module.exports = (function() {
       }
       if (s1 !== peg$FAILED) {
         peg$reportedPos = s0;
-        s1 = peg$c27(s1);
+        s1 = peg$c30(s1);
       }
       s0 = s1;
 
@@ -13803,16 +14067,16 @@ module.exports = (function() {
       var s0, s1;
 
       s0 = peg$currPos;
-      if (peg$c28.test(input.charAt(peg$currPos))) {
+      if (peg$c31.test(input.charAt(peg$currPos))) {
         s1 = input.charAt(peg$currPos);
         peg$currPos++;
       } else {
         s1 = peg$FAILED;
-        if (peg$silentFails === 0) { peg$fail(peg$c29); }
+        if (peg$silentFails === 0) { peg$fail(peg$c32); }
       }
       if (s1 !== peg$FAILED) {
         peg$reportedPos = s0;
-        s1 = peg$c30(s1);
+        s1 = peg$c33(s1);
       }
       s0 = s1;
 
@@ -13825,51 +14089,51 @@ module.exports = (function() {
       peg$silentFails++;
       s0 = peg$currPos;
       if (input.charCodeAt(peg$currPos) === 9) {
-        s1 = peg$c32;
+        s1 = peg$c35;
         peg$currPos++;
       } else {
         s1 = peg$FAILED;
-        if (peg$silentFails === 0) { peg$fail(peg$c33); }
+        if (peg$silentFails === 0) { peg$fail(peg$c36); }
       }
       if (s1 === peg$FAILED) {
         if (input.charCodeAt(peg$currPos) === 11) {
-          s1 = peg$c34;
+          s1 = peg$c37;
           peg$currPos++;
         } else {
           s1 = peg$FAILED;
-          if (peg$silentFails === 0) { peg$fail(peg$c35); }
+          if (peg$silentFails === 0) { peg$fail(peg$c38); }
         }
         if (s1 === peg$FAILED) {
           if (input.charCodeAt(peg$currPos) === 12) {
-            s1 = peg$c36;
+            s1 = peg$c39;
             peg$currPos++;
           } else {
             s1 = peg$FAILED;
-            if (peg$silentFails === 0) { peg$fail(peg$c37); }
+            if (peg$silentFails === 0) { peg$fail(peg$c40); }
           }
           if (s1 === peg$FAILED) {
             if (input.charCodeAt(peg$currPos) === 32) {
-              s1 = peg$c38;
+              s1 = peg$c41;
               peg$currPos++;
             } else {
               s1 = peg$FAILED;
-              if (peg$silentFails === 0) { peg$fail(peg$c39); }
+              if (peg$silentFails === 0) { peg$fail(peg$c42); }
             }
             if (s1 === peg$FAILED) {
               if (input.charCodeAt(peg$currPos) === 160) {
-                s1 = peg$c40;
+                s1 = peg$c43;
                 peg$currPos++;
               } else {
                 s1 = peg$FAILED;
-                if (peg$silentFails === 0) { peg$fail(peg$c41); }
+                if (peg$silentFails === 0) { peg$fail(peg$c44); }
               }
               if (s1 === peg$FAILED) {
                 if (input.charCodeAt(peg$currPos) === 65279) {
-                  s1 = peg$c42;
+                  s1 = peg$c45;
                   peg$currPos++;
                 } else {
                   s1 = peg$FAILED;
-                  if (peg$silentFails === 0) { peg$fail(peg$c43); }
+                  if (peg$silentFails === 0) { peg$fail(peg$c46); }
                 }
               }
             }
@@ -13878,13 +14142,13 @@ module.exports = (function() {
       }
       if (s1 !== peg$FAILED) {
         peg$reportedPos = s0;
-        s1 = peg$c44();
+        s1 = peg$c47();
       }
       s0 = s1;
       peg$silentFails--;
       if (s0 === peg$FAILED) {
         s1 = peg$FAILED;
-        if (peg$silentFails === 0) { peg$fail(peg$c31); }
+        if (peg$silentFails === 0) { peg$fail(peg$c34); }
       }
 
       return s0;
@@ -13933,6 +14197,206 @@ module.exports = (function() {
 })();
 
 },{}],6:[function(require,module,exports){
+var Mode, ModeManager, _,
+  slice = [].slice;
+
+_ = require('lodash');
+
+Mode = (function() {
+  function Mode(manager, name1, fields) {
+    this.name = name1;
+    this.open = fields.open, this.close = fields.close, this.canTransitionTo = fields.canTransitionTo, this.background = fields.background;
+    this.before = (function(_this) {
+      return function(data) {
+        manager._forEach(_this.canTransitionTo, function(mode) {
+          return mode.open();
+        });
+        return fields.before(data);
+      };
+    })(this);
+    this.after = (function(_this) {
+      return function() {
+        manager._forEach(_this.canTransitionTo, function(mode) {
+          return mode.close();
+        });
+        return fields.after();
+      };
+    })(this);
+  }
+
+  return Mode;
+
+})();
+
+ModeManager = (function() {
+  ModeManager.prototype._activeMode = null;
+
+  function ModeManager(context1) {
+    this.context = context1;
+    this._modes = {};
+    Object.defineProperty(this, 'mode', {
+      get: function() {
+        return this._activeMode.name;
+      }
+    });
+  }
+
+  ModeManager.prototype.start = function(initialMode) {
+    return this.setMode(initialMode);
+  };
+
+  ModeManager.prototype.stop = function() {
+    var ref;
+    return this._forEach((ref = this._activeMode) != null ? ref.canTransitionTo : void 0, (function(_this) {
+      return function(mode) {
+        return mode.close();
+      };
+    })(this));
+  };
+
+  ModeManager.prototype.resume = function() {
+    var ref;
+    return this._forEach((ref = this._activeMode) != null ? ref.canTransitionTo : void 0, (function(_this) {
+      return function(mode) {
+        return mode.open();
+      };
+    })(this));
+  };
+
+
+  /*
+  Add a new mode to the manager.
+  Returns the manager for chaining.
+  
+  The second argument is an object with fields:
+  
+    canTransitionTo: a list of mode names which this mode can transition to
+    accept: a function which accepts an `accept` procedure (which, when called,
+      sets the current mode to this one), and returns an "start-stop object",
+      which is started when this mode can be transitioned to, and stopped when
+      this mode can no longer be transitioned to.
+    active: a function with no parameters, which returns an "start-stop object",
+      which is started when this mode is entered, and stopped when this mode is
+      exited.
+  
+  Both `accept` and `active` are bound to this ModeManager's `context`. If you
+    want to use `context` as `this` in your start-stop object, use a fat arrow
+    (or Function::bind). Otherwise, `this` in your start-stop object will refer
+    to the `Mode` object which `ModeManager` creates.
+  [TODO: Not certain if there's any benefit to this... Might change it so the
+    context is alwasy bound.]
+  
+  start-stop objects:
+    start: ->
+    stop: ->
+   */
+
+  ModeManager.prototype.add = function(name, options) {
+    var accept, acceptResult, activeResult, context, reclaim, release;
+    options = _.defaults(options, {
+      parent: null,
+      canTransitionTo: [],
+      checkAccept: function() {
+        return {
+          start: function() {},
+          stop: function() {}
+        };
+      },
+      active: function() {
+        return {
+          start: function() {},
+          stop: function() {},
+          background: function() {}
+        };
+      }
+    });
+    accept = (function(_this) {
+      return function(data) {
+        if (_this.mode === options.parent) {
+          _this._activeMode.background();
+        }
+        return _this.setMode(name, data);
+      };
+    })(this);
+    release = (function(_this) {
+      return function(data) {
+        return _this.setMode(options.parent, data);
+      };
+    })(this);
+    reclaim = (function(_this) {
+      return function(data) {
+        return _this.setMode(name, data);
+      };
+    })(this);
+    acceptResult = _.defaults((this._bind(options.checkAccept))(accept), {
+      start: function() {},
+      stop: function() {}
+    });
+    activeResult = _.defaults((this._bind(options.active))(), {
+      start: function() {},
+      stop: function() {},
+      background: function() {}
+    });
+    context = this;
+    this._modes[name] = new Mode(this, name, {
+      parent: options.parent,
+      canTransitionTo: options.canTransitionTo,
+      open: context._bind(acceptResult.start),
+      close: context._bind(acceptResult.stop),
+      before: context._bind(activeResult.start, release),
+      background: context._bind(activeResult.background, reclaim, release),
+      after: context._bind(activeResult.stop)
+    });
+    return this;
+  };
+
+  ModeManager.prototype.get = function(modeName) {
+    return this._modes[modeName];
+  };
+
+  ModeManager.prototype.setMode = function(modeName, data) {
+    if (data == null) {
+      data = {};
+    }
+    if ((this._activeMode != null) && modeName === this._activeMode.name) {
+      return;
+    }
+    if (this._activeMode != null) {
+      this._activeMode.after();
+    }
+    this._activeMode = this.get(modeName);
+    this._activeMode.before(data);
+    return this._activeMode;
+  };
+
+  ModeManager.prototype._forEach = function(modeNames, proc) {
+    return modeNames.forEach((function(_this) {
+      return function(modeName) {
+        var mode;
+        mode = _this.get(modeName);
+        if (mode != null) {
+          return proc(mode);
+        } else {
+          return console.error('No such mode ', modeName);
+        }
+      };
+    })(this));
+  };
+
+  ModeManager.prototype._bind = function() {
+    var args, fn;
+    fn = arguments[0], args = 2 <= arguments.length ? slice.call(arguments, 1) : [];
+    return _.bind.apply(_, [fn, this.context].concat(slice.call(args)));
+  };
+
+  return ModeManager;
+
+})();
+
+module.exports = ModeManager;
+
+
+},{"lodash":2}],7:[function(require,module,exports){
 var match;
 
 module.exports = match = function(obj, fns) {
@@ -13953,13 +14417,400 @@ module.exports = match = function(obj, fns) {
 };
 
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 Function.prototype.property = function(prop, desc) {
   return Object.defineProperty(this.prototype, prop, desc);
 };
 
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
+var ModeManager, _;
+
+_ = require('lodash');
+
+ModeManager = require('util/ModeManager');
+
+describe('basic mode manager', function() {
+  beforeEach(function() {
+    var context;
+    this.context = context = {
+      foo: 3,
+      bar: false
+    };
+    this.manager = new ModeManager(this.context);
+    return this.manager.add('base', {
+      canTransitionTo: [],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {},
+          stop: function() {}
+        };
+      },
+      active: function() {
+        return {
+          start: function() {
+            return this.foo = 5;
+          },
+          stop: function() {
+            return this.foo = 10;
+          }
+        };
+      }
+    });
+  });
+  afterEach(function() {
+    return this.manager.stop();
+  });
+  it('can have a mode', function() {
+    this.manager.start('base');
+    return expect(this.manager.mode).toBe('base');
+  });
+  it('can mutate context', function() {
+    this.manager.start('base');
+    expect(this.manager.mode).toBe('base');
+    expect(this.context.foo).toBe(5);
+    this.manager.stop();
+    expect(this.manager.mode).toBe('base');
+    return expect(this.context.foo).toBe(5);
+  });
+  return it('passes context correctly', function() {
+    var context, track;
+    context = this.context;
+    track = jasmine.createSpy('track');
+    this.manager.add('base2', {
+      canTransitionTo: ['base3'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {},
+          stop: function() {}
+        };
+      },
+      active: function() {
+        expect(this).toBe(context);
+        track();
+        return {
+          start: function() {
+            expect(this).toBe(context);
+            return track();
+          },
+          stop: function() {
+            expect(this).toBe(context);
+            return track();
+          }
+        };
+      }
+    });
+    this.manager.add('base3', {
+      canTransitionTo: [],
+      checkAccept: function(acceptFn) {
+        expect(this).toBe(context);
+        this.transition = acceptFn;
+        track();
+        return {
+          start: function() {
+            expect(this).toBe(context);
+            return track();
+          },
+          stop: function() {
+            expect(this).toBe(context);
+            return track();
+          }
+        };
+      },
+      active: function() {
+        return {
+          start: function() {},
+          stop: function() {}
+        };
+      }
+    });
+    this.manager.start('base2');
+    this.context.transition();
+    expect(this.manager.mode).toBe('base3');
+    return expect(track.calls.count()).toBe(6);
+  });
+});
+
+describe('intermediate mode manager', function() {
+  beforeEach(function() {
+    var transitions;
+    this.context = {
+      currentMode: 'none'
+    };
+    this.manager = new ModeManager(this.context);
+    this.transitions = transitions = {};
+    return this.manager.add('left', {
+      canTransitionTo: ['center'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return transitions.left = acceptFn;
+          },
+          stop: function() {
+            return transitions.left = null;
+          }
+        };
+      },
+      active: function() {
+        return {
+          start: function() {
+            return this.currentMode = 'left';
+          },
+          stop: function() {
+            return this.currentMode = 'none';
+          }
+        };
+      }
+    }).add('center', {
+      canTransitionTo: ['left', 'right'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return transitions.center = acceptFn;
+          },
+          stop: function() {
+            return transitions.center = null;
+          }
+        };
+      },
+      active: function() {
+        return {
+          start: function() {
+            return this.currentMode = 'center';
+          },
+          stop: function() {
+            return this.currentMode = 'none';
+          }
+        };
+      }
+    }).add('right', {
+      canTransitionTo: ['center'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return transitions.right = acceptFn;
+          },
+          stop: function() {
+            return transitions.right = null;
+          }
+        };
+      },
+      active: function() {
+        return {
+          start: function() {
+            return this.currentMode = 'right';
+          },
+          stop: function() {
+            return this.currentMode = 'none';
+          }
+        };
+      }
+    });
+  });
+  afterEach(function() {
+    return this.manager.stop();
+  });
+  return it('can switch modes', function() {
+    this.manager.start('left');
+    expect(this.context.currentMode).toBe('left');
+    this.transitions.center();
+    expect(this.context.currentMode).toBe('center');
+    this.transitions.right();
+    expect(this.context.currentMode).toBe('right');
+    expect(this.transitions.left).toBeNull();
+    this.transitions.center();
+    expect(this.context.currentMode).toBe('center');
+    this.manager.stop();
+    expect(this.transitions.left).toBeNull();
+    return expect(this.transitions.right).toBeNull();
+  });
+});
+
+describe('layered mode manager', function() {
+  beforeEach(function() {
+    this.context = {
+      topMode: 'none',
+      transitions: {}
+    };
+    this.manager = new ModeManager(this.context);
+    return this.manager.add('left', {
+      canTransitionTo: ['right', 'leftright'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return this.transitions.left = acceptFn;
+          },
+          stop: function() {
+            return this.transitions.left = null;
+          }
+        };
+      },
+      active: function() {
+        return {
+          start: function() {
+            return this.topMode = 'left';
+          },
+          stop: function() {
+            return this.topMode = 'none';
+          },
+          background: function(reclaimFn, releaseFn) {
+            return this.transitions.reclaimLeft = reclaimFn;
+          }
+        };
+      }
+    }).add('right', {
+      canTransitionTo: ['left'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return this.transitions.right = acceptFn;
+          },
+          stop: function() {
+            return this.transitions.right = null;
+          }
+        };
+      },
+      active: function() {
+        return {
+          start: function() {
+            return this.topMode = 'right';
+          },
+          stop: function() {
+            return this.topMode = 'none';
+          }
+        };
+      }
+    }).add('leftright', {
+      parent: 'left',
+      canTransitionTo: ['leftleft', 'right', 'leftrightstack'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return this.transitions.leftright = acceptFn;
+          },
+          stop: function() {
+            return this.transitions.leftright = null;
+          }
+        };
+      },
+      active: function() {
+        return {
+          start: function(releaseFn) {
+            this.topMode = 'leftright';
+            this.transitions.releaseLR = releaseFn;
+            return this.leftrightPaused = false;
+          },
+          stop: function() {
+            return this.topMode = 'none';
+          },
+          background: function(reclaimFn, releaseFn) {
+            this.leftrightPaused = true;
+            this.transitions.reclaimLR = reclaimFn;
+            return this.transitions.popToLeft = releaseFn;
+          }
+        };
+      }
+    }).add('leftleft', {
+      parent: 'left',
+      canTransitionTo: ['leftright'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return this.transitions.leftleft = acceptFn;
+          },
+          stop: function() {
+            return this.transitions.leftleft = null;
+          }
+        };
+      },
+      active: function() {
+        return {
+          start: function(releaseFn) {
+            this.topMode = 'leftleft';
+            this.transitions.release = releaseFn;
+            this.transitions.reclaim = null;
+            return this.transitions.popToRoot = null;
+          },
+          stop: function() {
+            return this.topMode = 'none';
+          }
+        };
+      }
+    }).add('leftrightstack', {
+      parent: 'leftright',
+      canTransitionTo: [],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return this.transitions.acceptLRS = acceptFn;
+          },
+          stop: function() {}
+        };
+      },
+      active: function() {
+        return {
+          start: function(releaseFn) {
+            return this.transitions.releaseLRS = releaseFn;
+          },
+          stop: function() {
+            return this.transitions.releaseLRS = null;
+          }
+        };
+      }
+    });
+  });
+  afterEach(function() {
+    return this.manager.stop();
+  });
+  it('can navigate layered modes', function() {
+    this.manager.start('right');
+    expect(this.manager.mode).toBe('right');
+    expect(this.context.transitions.leftleft).toBeFalsy();
+    expect(this.context.transitions.leftright).toBeFalsy();
+    this.context.transitions.left();
+    expect(this.manager.mode).toBe('left');
+    expect(this.context.transitions.leftleft).toBeFalsy();
+    expect(this.context.transitions.leftright).toBeTruthy();
+    this.context.transitions.leftright();
+    expect(this.manager.mode).toBe('leftright');
+    this.context.transitions.leftleft();
+    expect(this.manager.mode).toBe('leftleft');
+    this.context.transitions.release();
+    return expect(this.manager.mode).toBe('left');
+  });
+  it('can jump layers', function() {
+    this.manager.start('left');
+    this.context.transitions.leftright();
+    expect(this.manager.mode).toBe('leftright');
+    this.context.transitions.right();
+    expect(this.manager.mode).toBe('right');
+    return expect(this.context.transitions.release).toBeFalsy();
+  });
+  return it('can release multiple frames', function() {
+    this.manager.start('left');
+    this.context.transitions.leftright();
+    expect(this.manager.mode).toBe('leftright');
+    this.context.transitions.acceptLRS();
+    expect(this.manager.mode).toBe('leftrightstack');
+    this.context.transitions.releaseLRS();
+    expect(this.manager.mode).toBe('leftright');
+    this.context.transitions.acceptLRS();
+    expect(this.manager.mode).toBe('leftrightstack');
+    expect(this.context.leftrightPaused).toBe(true);
+    this.context.transitions.reclaimLR();
+    expect(this.manager.mode).toBe('leftright');
+    expect(this.context.leftrightPaused).toBe(false);
+    this.context.transitions.acceptLRS();
+    expect(this.manager.mode).toBe('leftrightstack');
+    expect(this.context.leftrightPaused).toBe(true);
+    this.context.transitions.popToLeft();
+    expect(this.manager.mode).toBe('left');
+    return expect(this.context.transitions.releaseLRS).toBeNull();
+  });
+});
+
+
+},{"lodash":2,"util/ModeManager":6}],10:[function(require,module,exports){
 var Expression, Grammar, Hole, Literal, Node, Piece, Subexpression, SyntaxTree, _, parseGrammar, ref, ref1,
   slice = [].slice;
 
@@ -14093,9 +14944,8 @@ describe('syntax trees', function() {
     digitsInfo = this.tree.navigateExpression(pathToDigitsInfo);
     expect(digitsInfo).toBeDefined();
     expect(digitsInfo.instances.length).toBe(1);
-    expect(digitsInfo.node()).toBe(digitsInfo.instances[0]);
-    expect(digitsInfo.node().parent).toBe(this.tree.root);
-    return expect(digitsInfo.node().isFilled).toBe(false);
+    expect(digitsInfo.instances[0].parent).toBe(this.tree.root);
+    return expect(digitsInfo.instances[0].isFilled).toBe(false);
   });
   it('can navigate from intermediate', function() {
     var digits1, digits2, pathToDigits1, pathToDigits2;

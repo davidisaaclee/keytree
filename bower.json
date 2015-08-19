@@ -20,7 +20,8 @@
     "polymer": "Polymer/polymer#~1.0.4",
     "polymer-gestures": "Polymer/polymer-gestures#~0.5.6",
     "disclose-section": "davidisaaclee/disclose-section",
-    "input-suggest": "davidisaaclee/input-suggest"
+    "input-suggest": "davidisaaclee/input-suggest",
+    "flower-picker": "davidisaaclee/flower-picker"
   },
   "devDependencies": {
     "text-tree": "davidisaaclee/text-tree"

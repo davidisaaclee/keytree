@@ -6,14 +6,14 @@ link(rel='import', href='../bower_components/disclose-section/disclose-section.h
 link(rel='import', href='../bower_components/input-suggest/input-suggest.html')
 
 dom-module#key-tree
-  //- link(rel='import', type='css', href='style.css')
-  style(is='custom-style')
-    include ../build/style.css
+  link(rel='import', type='css', href='style.css')
+  //- style(is='custom-style')
+  //-   include ../build/style.css
   template
     #container
       #overlay
         flower-picker#picker(radius="100")
-        input-suggest#user-input-box(autoreset, hidden)
+        input-suggest#user-input-box(autoreset)
       #app
         disclose-section#grammar-edit
           span(trigger) Edit grammar...
