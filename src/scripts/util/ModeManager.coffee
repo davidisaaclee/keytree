@@ -45,7 +45,7 @@ class ModeManager
   The second argument is an object with fields:
 
     canTransitionTo: a list of mode names which this mode can transition to
-    accept: a function which accepts an `accept` procedure (which, when called,
+    checkAccept: a function which accepts an `accept` procedure (which, when called,
       sets the current mode to this one), and returns an "start-stop object",
       which is started when this mode can be transitioned to, and stopped when
       this mode can no longer be transitioned to.
@@ -63,6 +63,41 @@ class ModeManager
   start-stop objects:
     start: ->
     stop: ->
+
+  Example usage:
+
+  manager.add 'my-mode',
+    parent: 'my-parent-mode'
+
+    canTransitionTo: ['my-sibling-mode']
+
+    checkAccept: (accept) ->
+      # useful to define event listeners in `checkAccept`,
+      #   for reference in adding and removing
+      checkEvent = (evt) ->
+        if evt.mode is 'my-mode'
+          do accept
+
+      start: () ->
+        window.addEventListener 'switch-modes', checkEvent
+      stop: () ->
+        window.removeEventListener 'switch-modes', checkEvent
+
+    active: (release, reclaim) ->
+      ifKey = (keycode, cb) -> (evt) ->
+        if evt.which is keycode
+          do cb
+      keycodes =
+        esc: 27
+        tab: 9
+
+      start: () ->
+        window.addEventListener (ifKey keycodes.esc, release)
+      stop: () ->
+        window.removeEventListener (ifKey keycodes.esc, release)
+      background: () ->
+        window.removeEventListener (ifKey keycodes.tab, reclaim)
+
   ###
   add: (name, options) ->
     options = _.defaults options,
@@ -110,6 +145,8 @@ class ModeManager
   setMode: (modeName, data) ->
     if @_activeMode? and modeName is @_activeMode.name
       return
+
+    console.log "#{@mode}\t->\t#{modeName}"
 
     if @_activeMode?
       do @_activeMode.after

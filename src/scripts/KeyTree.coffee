@@ -1,12 +1,12 @@
 _ = require 'lodash'
+{SyntaxTree, Node} = require 'Syntax'
+{Grammar, Expression, Piece, Literal, Hole, Input, Subexpression} = require 'Grammar'
 match = require 'util/match'
 # enumerate = require 'util/enumerate'
 renameProperty = require 'util/renameProperty'
-{SyntaxTree, Node} = require 'Syntax'
-{Grammar, Expression, Piece, Literal, Hole, Input, Subexpression} = require 'Grammar'
-# parseGrammar = (require 'parsers/grammar-shorthand').parse
-parseGrammar = (require 'parsers/grammar-new').parse
 ModeManager = require 'util/ModeManager'
+InputUtil = require 'util/Input'
+parseGrammar = (require 'parsers/grammar-new').parse
 
 Polymer
   is: 'key-tree'
@@ -26,62 +26,6 @@ Polymer
   # input-suggest DOM element
   _userInputBox: null
 
-
-  ## Event handling ##
-
-  # preventDefault: (evt) -> do evt.preventDefault
-
-  # _handleCursorMovement: (evt) ->
-  #   moveTo = switch evt.keyIdentifier
-  #     when 'Up'
-  #       @syntaxTree.parentOf @_activeHole.nodeModel
-  #     when 'Down'
-  #       @syntaxTree.firstChildOf @_activeHole.nodeModel
-  #     when 'Right'
-  #       @syntaxTree.nextSibling @_activeHole.nodeModel
-  #     when 'Left'
-  #       @syntaxTree.previousSibling @_activeHole.nodeModel
-  #   if moveTo?
-  #     @setActiveHole @syntaxTree.pathForNode moveTo
-
-  # _onFlowerPickerSelect: (event) ->
-  #   model = event.detail.value
-  #   expr =
-  #     if model.type is 'input'
-  #     then model.template
-  #     else @syntaxTree.grammar.makeExpression model.group, model.identifier, model.data
-
-  #   @_activeHole?.nodeModel.fill expr
-
-  # _onUp: (event) ->
-  #   # TODO
-
-  # _onTextTreeRequestFill: (event) ->
-  #   # TODO
-
-  # # _startFlowerPicker: (evt) ->
-  # #   pathToHole = evt.detail.idPath
-
-  # #   holeElement = evt.detail.tree.navigate pathToHole
-  # #   if not holeElement?
-  # #     throw new Error ('Selected an invalid hole element at path' + pathToHole)
-
-  #   # # FIXME: Getting the bounding client rect here seems to be buggy
-  #   # #   on Safari - pinch-zooming in the webpage changes the location
-  #   # #   of the rect. (This is not the behavior in Google Chrome.)
-  #   # # For now, let's just disable zooming... I guess.
-  #   # holeRect = holeElement.getBoundingClientRect()
-  #   # holeCenter =
-  #   #   x: holeRect.left + holeRect.width / 2
-  #   #   y: holeRect.top + holeRect.height / 2
-
-  #   # @_spawnFlowerPicker pathToHole, holeCenter
-
-  # _endFlowerPicker: (evt) ->
-  #   @_flowerPicker.style['pointer-events'] = 'none'
-  #   @_flowerPicker.finish {x: evt.detail.x, y: evt.detail.y}
-  #   @_isFlowerPickerActive = false
-
   # _selectedUserString: (evt) ->
   #   @_finishUserInput evt.detail.item
 
@@ -95,16 +39,15 @@ Polymer
   _makeModeManager: () ->
     (new ModeManager this)
       .add 'idle',
-
         parent: null
 
-        canTransitionTo: ['pick']
+        canTransitionTo: ['pick', 'input']
 
         checkAccept: (acceptFn) ->
           start: () ->
           stop: () ->
 
-        active: (reclaim) ->
+        active: (release, reclaim) ->
           handleCursorMovement = (evt) =>
             moveTo = switch evt.keyIdentifier
               when 'Up'
@@ -118,16 +61,15 @@ Polymer
             if moveTo?
               @setActiveHole @syntaxTree.pathForNode moveTo
 
-          start: (release) ->
+          start: (data) ->
             window.addEventListener 'keyup', handleCursorMovement
             Polymer.Gestures.remove window, 'up', reclaim
 
           stop: () ->
             window.removeEventListener 'keyup', handleCursorMovement
 
-          background: (release) ->
+          background: (data) ->
             window.removeEventListener 'keyup', handleCursorMovement
-            Polymer.Gestures.add window, 'up', reclaim
 
 
       .add 'pick',
@@ -139,27 +81,31 @@ Polymer
           startFlowerPicker = (evt) =>
             pathToHole = evt.detail.idPath
             holeElement = evt.detail.tree.navigate pathToHole
-            if not holeElement?
-              throw new Error ('Selected an invalid hole element at path' + pathToHole)
+            node = @syntaxTree.navigate pathToHole
+            if node.holeInformation.isUserString
+              return
+            else
+              if not holeElement?
+                throw new Error ('Selected an invalid hole element at path' + pathToHole)
 
-            # FIXME: Getting the bounding client rect here seems to be buggy
-            #   on Safari - pinch-zooming in the webpage changes the location
-            #   of the rect. (This is not the behavior in Google Chrome.)
-            # For now, let's just disable zooming... I guess.
-            holeRect = holeElement.getBoundingClientRect()
-            holeCenter =
-              x: holeRect.left + holeRect.width / 2
-              y: holeRect.top + holeRect.height / 2
+              # FIXME: Getting the bounding client rect here seems to be buggy
+              #   on Safari - pinch-zooming in the webpage changes the location
+              #   of the rect. (This is not the behavior in Google Chrome.)
+              # For now, let's just disable zooming... I guess.
+              holeRect = holeElement.getBoundingClientRect()
+              holeCenter =
+                x: holeRect.left + holeRect.width / 2
+                y: holeRect.top + holeRect.height / 2
 
-            @_spawnFlowerPicker pathToHole, holeCenter
-            do accept
+              @_spawnFlowerPicker pathToHole, holeCenter
+              do accept
 
-          start: () ->
+          start: (data) ->
             @_textRoot.addEventListener 'requested-fill', startFlowerPicker
           stop: () ->
             @_textRoot.removeEventListener 'requested-fill', startFlowerPicker
 
-        active: (reclaim) ->
+        active: (release, reclaim) ->
           preventDefault = (evt) -> do evt.preventDefault
           onFlowerPickerSelect = (event) =>
             model = event.detail.value
@@ -167,11 +113,13 @@ Polymer
               if model.type is 'input'
               then model.template
               else @syntaxTree.grammar.makeExpression model.group, model.identifier, model.data
+            @_activeHole?.nodeModel.fill expr
           endFlowerPicker = (evt) =>
             @_flowerPicker.style['pointer-events'] = 'none'
             @_flowerPicker.finish {x: evt.detail.x, y: evt.detail.y}
+            do release
 
-          start: () ->
+          start: (data) ->
             Polymer.Gestures.add @_flowerPicker, 'track', preventDefault
             @_flowerPicker.addEventListener 'selected', onFlowerPickerSelect
             Polymer.Gestures.add document, 'up', endFlowerPicker
@@ -181,51 +129,47 @@ Polymer
             Polymer.Gestures.remove document, 'up', endFlowerPicker
 
 
+      .add 'input',
+        parent: 'idle'
 
-        # canTransitionTo: ['idle']
-        # accept: (accept) ->
-        #   startFlowerPicker = (evt) =>
-        #     pathToHole = evt.detail.idPath
-        #     holeElement = evt.detail.tree.navigate pathToHole
-        #     if not holeElement?
-        #       throw new Error ('Selected an invalid hole element at path' + pathToHole)
+        canTransitionTo: ['idle', 'pick']
 
-        #     # FIXME: Getting the bounding client rect here seems to be buggy
-        #     #   on Safari - pinch-zooming in the webpage changes the location
-        #     #   of the rect. (This is not the behavior in Google Chrome.)
-        #     # For now, let's just disable zooming... I guess.
-        #     holeRect = holeElement.getBoundingClientRect()
-        #     holeCenter =
-        #       x: holeRect.left + holeRect.width / 2
-        #       y: holeRect.top + holeRect.height / 2
+        checkAccept: (accept) ->
+          startInput = (evt) =>
+            pathToHole = evt.detail.idPath
+            holeElement = evt.detail.tree.navigate pathToHole
+            node = @syntaxTree.navigate pathToHole
+            if node.holeInformation.isUserString
+              accept
+                path: pathToHole
+                holeElement: holeElement
+                node: node
 
-        #     @_spawnFlowerPicker pathToHole, holeCenter
-        #     do accept
+          start: () ->
+            @_textRoot.addEventListener 'requested-fill', startInput
+          stop: () ->
+            @_textRoot.removeEventListener 'requested-fill', startInput
 
-        #   start: () =>
-        #     @_textRoot.addEventListener 'requested-fill', startFlowerPicker
-        #   stop: () =>
-        #     @_textRoot.removeEventListener 'requested-fill', startFlowerPicker
-        # active: () ->
-        #   preventDefault = (evt) -> do evt.preventDefault
-        #   onFlowerPickerSelect = (event) =>
-        #     model = event.detail.value
-        #     expr =
-        #       if model.type is 'input'
-        #       then model.template
-        #       else @syntaxTree.grammar.makeExpression model.group, model.identifier, model.data
-        #   endFlowerPicker = (evt) =>
-        #     @_flowerPicker.style['pointer-events'] = 'none'
-        #     @_flowerPicker.finish {x: evt.detail.x, y: evt.detail.y}
+        active: (release, reclaim) ->
+          start: (data) ->
+            holeRect = data.holeElement.getBoundingClientRect()
+            holeCenter =
+              x: holeRect.left + holeRect.width / 2
+              y: holeRect.top + holeRect.height / 2
+            @_userInputBox.style['visibility'] = 'visible'
+            @_userInputBox.style['top'] = "#{holeCenter.y}px"
+            @_userInputBox.style['left'] = "#{holeCenter.x}px"
+            do @_userInputBox.focus
 
-        #   start: () =>
-        #     Polymer.Gestures.add @_flowerPicker, 'track', preventDefault
-        #     @_flowerPicker.addEventListener 'selected', onFlowerPickerSelect
-        #     Polymer.Gestures.add document, 'up', endFlowerPicker
-        #   stop: () =>
-        #     Polymer.Gestures.remove @_flowerPicker, 'track', preventDefault
-        #     @_flowerPicker.removeEventListener 'selected', onFlowerPickerSelect
-        #     Polymer.Gestures.remove document, 'up', endFlowerPicker
+            enterCode = 13
+            @_userInputBox.addEventListener \
+              'selected',
+              release
+            @_userInputBox.addEventListener \
+              'add',
+              release
+          stop: () ->
+            @_userInputBox.style['visibility'] = 'hidden'
 
 
   ready: () ->
@@ -292,9 +236,6 @@ Polymer
       mock.syntaxTree = new SyntaxTree mock.grammar, 'START'
       startNode = mock.syntaxTree.root
 
-      # if app?
-      # then app.loadState mock.syntaxTree
-      # else app = new App {syntaxTree: mock.syntaxTree}
       @setup mock.syntaxTree
 
     do loadRulesFromTextarea
@@ -315,16 +256,6 @@ Polymer
 
     @_modeManager = do @_makeModeManager
     @_modeManager.start 'idle'
-
-    # @_textRoot.addEventListener 'requested-fill', startFlowerPicker
-    # Polymer.Gestures.add document, 'up', endFlowerPicker
-    # @_flowerPicker.addEventListener 'selected', onFlowerPickerSelect
-    # Polymer.Gestures.add @_flowerPicker, 'track', preventDefault
-
-    # cursor movement
-    # window.addEventListener 'keyup', @_handleCursorMovement
-    # Polymer.Gestures.add document, 'down', ({detail}) =>
-    #   @_spawnFlowerPicker @_activeHole.path, detail
 
     # finally, load state and set initial cursor position
     @loadState @syntaxTree
