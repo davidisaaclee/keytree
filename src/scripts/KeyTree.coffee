@@ -97,6 +97,10 @@ Polymer
                 x: holeRect.left + holeRect.width / 2
                 y: holeRect.top + holeRect.height / 2
 
+              scrollOffset = do @_pageScrollOffset
+              holeCenter.x += scrollOffset.left
+              holeCenter.y += scrollOffset.top
+
               @_spawnFlowerPicker pathToHole, holeCenter
               do accept
 
@@ -124,6 +128,7 @@ Polymer
             @_flowerPicker.addEventListener 'selected', onFlowerPickerSelect
             Polymer.Gestures.add document, 'up', endFlowerPicker
           stop: () ->
+            # known issue with removing gesture listener on touch-only devices
             Polymer.Gestures.remove @_flowerPicker, 'track', preventDefault
             @_flowerPicker.removeEventListener 'selected', onFlowerPickerSelect
             Polymer.Gestures.remove document, 'up', endFlowerPicker
@@ -145,13 +150,40 @@ Polymer
                 holeElement: holeElement
                 node: node
 
+          removeEventListeners = ->
+
           start: () ->
-            @_textRoot.addEventListener 'requested-fill', startInput
+            textRoot = @_textRoot
+            removeEventListeners = @_coordinateEvents
+              trigger:
+                node: textRoot
+                event: 'requested-fill'
+              waitFor:
+                gesture: 'up'
+              callback: startInput
           stop: () ->
-            @_textRoot.removeEventListener 'requested-fill', startInput
+            do removeEventListeners
+            do @_userInputBox.blur
 
         active: (release, reclaim) ->
+          onUserStringAdd = (holeNode) => (evt) =>
+            @syntaxTree.registerUserString 'string', evt.detail.text
+            # console.log holeNode
+            tmpl = holeNode.template.withData evt.detail.text
+            console.log tmpl
+            holeNode.fill tmpl
+            do release
+          onUserStringSelect = (holeNode) => (evt) =>
+            # holeNode.fill evt.detail.model
+            # console.log evt.detail.model
+            # console.log 'onUserStringSelect'
+            do release
+
+          nodeBeingFilled = null
+
           start: (data) ->
+            nodeBeingFilled = data.node.parent
+
             holeRect = data.holeElement.getBoundingClientRect()
             holeCenter =
               x: holeRect.left + holeRect.width / 2
@@ -164,12 +196,21 @@ Polymer
             enterCode = 13
             @_userInputBox.addEventListener \
               'selected',
-              release
+              (onUserStringSelect nodeBeingFilled)
             @_userInputBox.addEventListener \
               'add',
-              release
+              (onUserStringAdd nodeBeingFilled)
           stop: () ->
             @_userInputBox.style['visibility'] = 'hidden'
+            @_userInputBox.removeEventListener \
+              'selected',
+              (onUserStringSelect nodeBeingFilled)
+            @_userInputBox.removeEventListener \
+              'add',
+              (onUserStringAdd nodeBeingFilled)
+
+
+
 
 
   ready: () ->
@@ -240,18 +281,20 @@ Polymer
 
     do loadRulesFromTextarea
     Polymer.Gestures.add setGrammar, 'up', loadRulesFromTextarea
-    Polymer.Gestures.add (document.querySelector '#render'), 'up', (evt) ->
-      alert app.syntaxTree.root.render()
+    Polymer.Gestures.add @$.render, 'up', (evt) =>
+      alert @syntaxTree.root.render()
+    Polymer.Gestures.add @$['focus-button'], 'up', () =>
+      @$['user-input-box'].focus()
 
   setup: (@syntaxTree) ->
     @_flowerPicker = @$.picker
-    @_userInputBox = @$['user-input-box']
-    @_textRoot = @$.tree
-
     @_flowerPicker.stayWithinElement = @$.container
 
-    @_isFlowerPickerActive = false
+    @_userInputBox = @$['user-input-box']
+    @_userInputBox.suggestions = @syntaxTree.userStrings.string
+    @_userInputBox.displayOnEmpty = true
 
+    @_textRoot = @$.tree
     Polymer.Base.setScrollDirection 'none', @_textRoot
 
     @_modeManager = do @_makeModeManager
@@ -266,6 +309,7 @@ Polymer
     ###
     TextTreeModel ::= TextTreeHoleModel
                     | TextTreeLiteralModel
+                    | TextTreeActionModel
 
     TextTreeHoleModel ::=
       type: 'hole'
@@ -277,11 +321,16 @@ Polymer
     TextTreeLiteralModel ::=
       type: 'literal'
       value: String
+
+    TextTreeActionModel ::=
+      type: 'action'
+      display: String
+      onAction: () ->
     ###
     syntaxTreeToTextTree = (st) ->
       toRename =
         'instanceId': 'id'
-        'holeId': 'placeholder'
+        'name': 'placeholder'
       recursiveOptions =
         enabled: true
         descendOn: ['value']
@@ -290,6 +339,7 @@ Polymer
 
     updateView = () =>
       @_textRoot.treeModel = syntaxTreeToTextTree @syntaxTree
+      console.log @_textRoot.treeModel
       @_textRoot.dispatchEvent (new CustomEvent 'changed')
 
     @syntaxTree.addEventListener 'changed', updateView
@@ -350,52 +400,106 @@ Polymer
     @setActiveHole pathToHole
     node = @syntaxTree.navigate pathToHole
 
-    if node.holeInformation.isUserString
-      ###
-      TODO
-      User string holes should not be modified via the picker.
+    @_flowerPicker.style['pointer-events'] = 'auto'
+    selectedRulesAsPetals = @_rulesToPetals \
+      @syntaxTree.grammar, \
+      [node.holeInformation.group]
+    @_flowerPicker.petals = selectedRulesAsPetals
+    @_flowerPicker.start spawnCenter
 
-      Insert the template, and optionally immediately focus on the
-      user string hole(s), with keyboard input.
-      ###
-      # DEBUG: replace this with non-petal input
-      # scope = this
-      # inputPiece = new Input \
-      #   node.holeInformation.id,
-      #   node.holeInformation.pattern,
-      #   node.holeInformation.quantifier
-      # selectedRulesAsPetals = [
-      #   model: new Expression [inputPiece]
-      #   isLeaf: true
-      #   type: 'input'
-      #   value: (model, data) ->
-      #     type: 'input'
-      #     data: data
-      #     template: new Expression [new Literal data]
-      #   display: (model, data) ->
-      #     if data? and data.length > 0
-      #     then do (new Input \
-      #       node.holeInformation.id,
-      #       node.holeInformation.pattern,
-      #       node.holeInformation.quantifier,
-      #       data).display
-      #     else do (new Input \
-      #       node.holeInformation.id,
-      #       node.holeInformation.pattern,
-      #       node.holeInformation.quantifier).display
-      # ]
 
-      console.log 'center', spawnCenter
-      console.log 'user input box', @_userInputBox
-      @_userInputBox.style['visibility'] = 'visible'
-      @_userInputBox.style['top'] = "#{spawnCenter.y}px"
-      @_userInputBox.style['left'] = "#{spawnCenter.x}px"
-      do @_userInputBox.focus
+  ### Helpers ###
+
+  _pageScrollOffset: () ->
+    if window.pageXOffset?
+    then left: window.pageXOffset, top: window.pageYOffset
     else
-      @_isFlowerPickerActive = true
-      @_flowerPicker.style['pointer-events'] = 'auto'
-      selectedRulesAsPetals = @_rulesToPetals \
-        @syntaxTree.grammar, \
-        [node.holeInformation.group]
-      @_flowerPicker.petals = selectedRulesAsPetals
-      @_flowerPicker.start spawnCenter
+      if (document.compatMode || "") is "CSS1Compat"
+      then left: document.documentElement.scrollLeft, top: document.documentElement.scrollTop
+      else left: document.body.scrollLeft, top: document.body.scrollTop
+
+  # Coordinate events with a trigger and optional "wait for" event.
+  # The callback will not be called until the "wait for" event is fired _after_
+  #   the trigger event has been fired.
+  #
+  # trigger:
+  #   node: ()
+  #   event: ''
+  #   gesture: ''
+  # waitFor:
+  #   node: ()      # if not supplied, uses trigger.node
+  #   event: ''
+  #   gesture: ''
+  # callback: ->
+  # autoremove: true | false
+  _coordinateEvents: ({callback, trigger, waitFor, autoremove}) ->
+    if callback? and trigger? and trigger.node?
+      if trigger.event? or trigger.gesture?
+        # Create a function to easily add a callback to the specified
+        #   event or gesture.
+        # This function returns a function which unsubscribes the callback.
+        makeAddEvent = (node, event, gesture, autoremove) ->
+          if event?
+            return (cb) ->
+              # cook callback to include autoremove if wanted
+              cb_ =
+                if autoremove
+                then (evt) ->
+                  cb evt
+                  console.log 'removing ', event, gesture
+                  node.removeEventListener event, cb_
+                else cb
+
+              node.addEventListener event, cb_
+              return () ->
+                console.log 'removing ', event
+                node.removeEventListener event, cb_
+          else if gesture?
+            return (cb) ->
+              # cook callback to include autoremove if wanted
+              cb_ =
+                if autoremove
+                then (evt) ->
+                  cb evt
+                  console.log 'removing ', event, gesture
+                  Polymer.Gestures.remove node, gesture, cb_
+                else cb
+
+              Polymer.Gestures.add node, gesture, cb_
+              return () ->
+                console.log 'removing ', gesture
+                Polymer.Gestures.remove node, gesture, cb_
+          else
+            console.error 'makeAddEvent with no event'
+
+        addTriggerEvent =
+          makeAddEvent trigger.node, trigger.event, trigger.gesture, autoremove
+
+        if waitFor?
+          # if waitFor.node is not supplied, use the trigger node
+          waitForNode = if waitFor.node? then waitFor.node else trigger.node
+
+          if waitFor.event? or waitFor.gesture?
+            addWaitForEvent =
+              makeAddEvent waitForNode, waitFor.event, waitFor.gesture, autoremove
+
+            # when the trigger is called, grab the event and...
+            removeOuter = removeInner = ->
+            removeOuter = addTriggerEvent (evt) ->
+              # wait for the waitfor event. when that is called...
+              removeInner = addWaitForEvent () ->
+                # call the original callback, with the original event
+                callback evt
+            return () -> do removeInner; do removeOuter
+          else
+            console.warn '_coordinateEvents given a `waitFor` node ' +
+              'with no event specified. doing nothing...'
+            return
+        else
+          # simple callback registration:
+          # add the callback, return unsusbscribe function
+          return addTriggerEvent callback
+      else
+        # doesn't meet minimum requirements, nothing to do
+        console.warn '_coordinateEvents called without minimum requirements.'
+        return

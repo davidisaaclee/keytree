@@ -6,12 +6,12 @@ link(rel='import', href='../bower_components/disclose-section/disclose-section.h
 link(rel='import', href='../bower_components/input-suggest/input-suggest.html')
 
 dom-module#key-tree
-  link(rel='import', type='css', href='style.css')
+  link(rel='import', is='custom-style', type='css', href='style.css')
   template
     #container
       #overlay
         flower-picker#picker(radius="100")
-        input-suggest#user-input-box(autoreset)
+        input-suggest#user-input-box(autoreset, displayOnEmpty)
       #app
         disclose-section#grammar-edit
           span(trigger) Edit grammar...
@@ -25,5 +25,6 @@ dom-module#key-tree
             div: button(id="setGrammar") Set grammar
         text-root#tree
         div: button#render Render
+        div: button#focus-button Focus
 
 script(src='app.js')

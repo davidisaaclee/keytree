@@ -146,7 +146,7 @@ class ModeManager
     if @_activeMode? and modeName is @_activeMode.name
       return
 
-    console.log "#{@mode}\t->\t#{modeName}"
+    # console.log "#{@mode}\t->\t#{modeName}"
 
     if @_activeMode?
       do @_activeMode.after

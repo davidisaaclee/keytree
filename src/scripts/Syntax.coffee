@@ -204,10 +204,10 @@ class Node
   ###
   Node.prototype.constructor - generic constructor
     parent - the to-be-created Node's parent
-    holeId - the id of the hole in the parent which the new Node will fill
+    name - the name of the hole in the parent which the new Node will fill
     template - the syntactic template expression that the new node will follow
   ###
-  constructor: (parent, holeId, template) ->
+  constructor: (parent, name, template) ->
     @_eventListeners = {}
 
     Object.defineProperty this, 'parent',
@@ -215,9 +215,9 @@ class Node
       set: (newValue) =>
         @_parent = newValue
         if @_parent?
-          if not @_parent._holes[holeId]?
+          if not @_parent._holes[name]?
             throw new Error 'ERROR: Attempted to fill non-existent hole.'
-          @holeInformation = @_parent._holes[holeId]
+          @holeInformation = @_parent._holes[name]
     @_eventParent = @parent = parent
 
     if template?
@@ -376,7 +376,7 @@ class Node
             when 'hole'
               if elm.isFilled
               then helper elm.value
-              else "<#{elm.holeId}>"
+              else "<#{elm.name}>"
         .join ''
 
   ###
@@ -410,10 +410,11 @@ class Node
   ###
   "Flattens" this node's descendants into a concrete syntax tree.
 
-  ReturnType ::= CST
+  ReturnType ::= [CST]
 
   CST ::= LiteralElement
         | HoleElement
+        | UserStringElement
 
   LiteralElement ::=
     type: 'literal'
@@ -423,16 +424,20 @@ class Node
     type: 'hole'
     isFilled: Boolean
     instanceId: String   # unique (within sequence) ID
-    holeId: String       # non-unique hole template ID
-    value: [ReturnType]
+    name: String       # non-unique hole template ID
+    value: [CST]
 
   ActionElement ::=
     type: 'action'
     display: String
     onAction: () ->
 
+  UserStringElement ::=
+    type: 'userstring'
+    name: String
+    instanceId: String
+    value: String
   ###
-  # TODO: should the `pushEmpty` functions be put in this structure?
   flatten: () ->
     scope = this
     reduction = (info) ->
@@ -441,12 +446,12 @@ class Node
           when 'literal'
             acc.push {type: 'literal', value: pc.text}
 
-          when 'hole', 'input'
+          when 'hole'
             Array.prototype.push.apply acc, \
               info.holes[pc.identifier].instances.map (instance) ->
                 type: 'hole'
                 isFilled: instance.isFilled
-                holeId: instance.holeInformation.id
+                name: instance.holeInformation.id
                 instanceId: instance.instanceId
                 value: if instance.isFilled then do instance.flatten else []
             expandNode =
@@ -459,6 +464,24 @@ class Node
               when 'optional'
                 if info.holes[pc.identifier].instances.length is 0
                   acc.push expandNode
+
+          when 'input'
+            Array.prototype.push.apply acc, \
+              info.holes[pc.identifier].instances.map (instance) ->
+                type: 'userstring'
+                name: instance.holeInformation.id
+                instanceId: instance.instanceId
+                value: instance.data
+            # expandNode =
+            #   type: 'action'
+            #   display: '+'
+            #   onAction: () -> do info.holes[pc.identifier].pushEmpty
+            # switch pc.quantifier
+            #   when 'kleene'
+            #     acc.push expandNode
+            #   when 'optional'
+            #     if info.holes[pc.identifier].instances.length is 0
+            #       acc.push expandNode
 
           when 'subexpression'
             ## does this method have any benefit?
