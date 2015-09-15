@@ -5,7 +5,9 @@
   "engines": {
     "node": "0.8.x"
   },
-  "dependencies": {},
+  "dependencies": {
+    "TreeModel": "git://github.com/davidisaaclee/TreeModel.git"
+  },
   "devDependencies": {
     "browserify": "^10.2.1",
     "browserify-fs": "^1.0.0",

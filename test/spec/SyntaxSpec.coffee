@@ -1,6 +1,6 @@
 _ = require 'lodash'
 {SyntaxTree, Node} = require 'Syntax'
-{Expression, Grammar, Piece, Literal, Hole, Subexpression} = require 'Grammar'
+{Template, Grammar, Piece, Literal, Hole, Subexpression} = require 'Grammar'
 parseGrammar = (require 'parsers/grammar-new').parse
 
 describe 'syntax trees', () ->

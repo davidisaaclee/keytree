@@ -16,19 +16,9 @@ class Grammar
     else @productions[groupId]?[productionId]
 
 
-# sequence of pieces
-class Expression
+# sequence of pieces, with extra grammatical metadata
+class Template
   constructor: (@pieces) ->
-
-  # TODO: make `data` a vector
-  ###
-  Creates a new instance of this Expression, with applied data.
-  ###
-  withData: (data) ->
-    new Expression @pieces.map (pc) ->
-      switch pc.type
-        when 'input' then pc.withData data
-        else pc
 
   display: () ->
     @pieces
@@ -42,14 +32,14 @@ class Piece
   # type: literal | hole | subexpression
   # data: {text: <string>}
   #     | {identifier: <string>, group: <string>}
-  #     | {expression: <Expression>}
+  #     | {template: <Template>}
   # quantifier: kleene | optional | one
   @make: (type, data, quantifier) ->
     if not quantifier? then quantifier = 'one'
     switch type
       when 'literal' then new Literal data.text, quantifier
       when 'hole' then new Hole data.identifier, data.group, quantifier
-      when 'subexpression' then new Subexpression data.expression, quantifier
+      when 'subexpression' then new Subexpression data.template, quantifier
 
   display: () ->
     console.warn 'display() not overriden for this Piece:', this
@@ -84,7 +74,12 @@ class Input extends Piece
   withData: (data) -> new Input @identifier, @pattern, @quantifier, data
 
 class Subexpression extends Piece
-  constructor: (@expression, @quantifier, @identifier) ->
+  ###
+  @param [Template] template This subexpression's template.
+  @param [String] quantifier
+  @param [String] identifier
+  ###
+  constructor: (@template, @quantifier, @identifier) ->
     @type = 'subexpression'
     if not @quantifier? then @quantifier = 'one'
 

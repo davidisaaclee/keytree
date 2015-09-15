@@ -57,7 +57,7 @@ options['jasmine'] = {
 };
 
 options['build-tests'] = {
-  src: './test/spec/**/*.coffee',
+  src: './test/**/*.coffee',
   options: {
     debug: true,
     basedir: __dirname + '/test',
