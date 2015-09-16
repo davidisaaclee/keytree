@@ -20,7 +20,7 @@ class MockLiteral extends MockPiece
     super 'literal'
 
 class MockInput extends MockPiece
-  constructor: (@identifier, @quantifier, @pattern) ->
+  constructor: (@identifier, @quantifier, @acceptCondition) ->
     super 'input'
 
 
@@ -112,3 +112,119 @@ describe 'Filling a syntax tree', () ->
       .toBeNull()
     expect centerHole.isFilled
       .toBe false
+
+
+describe 'Quantifiers', () ->
+  beforeEach () ->
+    @root = new ST.HoleNode 'start', (expr) ->
+      expr.group == 'START'
+
+    @one = new MockSubexpr 'subexpr_one', 'one', [
+      new MockLiteral 'one', 'david'
+      new MockHole 'abyss_option', 'option', (exp) -> true
+    ]
+    @option = new MockSubexpr 'subexpr_option', 'option', [
+      new MockLiteral 'option', 'david'
+      new MockHole 'abyss_kleene', 'kleene', (exp) -> true
+    ]
+    @kleene = new MockSubexpr 'subexpr_kleene', 'kleene', [
+      new MockLiteral 'kleene', 'david'
+      new MockHole 'abyss_one', 'one', (exp) -> true
+    ]
+
+    @flag = new MockSubexpr 'subexpr_flag', 'one', [
+      new MockLiteral 'flag'
+    ]
+
+  it 'generally work', () ->
+    # sort of tough to break this one out into multiple test cases, since
+    #  all the node types sort of work together...
+
+    @root.fill (new MockTemplate @one, 'START')
+
+    expect @root.expression
+      .toBeDefined()
+    expect @root.expression
+      .not.toBeNull()
+    expect @root.expression.instances
+      .toBeDefined()
+
+
+    inst1 = @root.expression.instantiate()
+    inst1_ = @root.expression.instances[0]
+    expect inst1
+      .toBe inst1_
+    expect inst1
+      .not.toBeNull()
+
+
+    # Since this is an optional hole, it created a subexpression for itself.
+    expect inst1.holes['abyss_option']
+      .not.toBeDefined()
+
+    console.log inst1
+
+    expect inst1.expressions['abyss_option']
+      .toBeDefined()
+    expect inst1.expressions['abyss_option'].instances.length
+      .toBe 0
+
+
+    # let's check out this deeper optional hole before going back up the tree
+    optionHole = inst1.expressions['abyss_option'].instantiate()
+    expect inst1.expressions['abyss_option'].instances.length
+      .toBe 1
+    expect inst1.expressions['abyss_option'].instances[0]
+      .toBe optionHole
+
+    expect optionHole.holes['abyss_option']
+      .toBeDefined()
+    expect optionHole.holes['abyss_option'].isFilled
+      .toBe false
+
+    optionHole
+      .holes['abyss_option']
+      .fill (new MockTemplate @one, 'will-be-replaced')
+    expect optionHole.holes['abyss_option'].isFilled
+      .toBe true
+    expect optionHole.holes['abyss_option'].expression.template
+      .toBe @one.pieces
+
+    previousFill = optionHole.holes['abyss_option'].expression
+
+    optionHole
+      .holes['abyss_option']
+      .fill (new MockTemplate @flag, 'replacement')
+    expect optionHole.holes['abyss_option'].isFilled
+      .toBe true
+    expect optionHole.holes['abyss_option'].expression.template
+      .toBe @flag.pieces
+
+    expect optionHole.childList.length
+      .toBe 1
+    expect optionHole.holes['abyss_option'].expression
+      .not.toBe previousFill
+
+
+    # now, let's try changing things up the tree
+    inst2 = @root.expression.instantiate()
+
+    expect @root.expression.childList.length
+      .toBe 1
+    expect inst2
+      .toBeNull()
+    expect inst2
+      .not.toBe @root.expression.instances[0]
+    expect @root.expression.instances.length
+      .toBe 1
+
+  #   expect inst1
+  #     .not.toBe inst2 # o snap!
+
+  #   expect inst1.expressions['abyss_option'].isFilled
+  #     .toBe true
+  #   expect inst2.holes['abyss_option'].isFilled
+  #     .toBe false
+
+
+  # it 'work for other node kinds', () ->

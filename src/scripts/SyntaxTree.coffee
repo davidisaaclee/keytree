@@ -1,10 +1,17 @@
+_ = require 'lodash'
 TreeModel = require 'TreeModel'
-
 
 ###
 TREE STRUCTURE
 
-HoleNode -> ExpressionNode
+ExpressionNode: Hold a template and a way of making a set number of instances.
+InstanceNode: An instance of an ExpressionNode. Can have HoleNodes,
+  LiteralNodes, InputNodes, and ExpressionNodes as children, as dictated by
+  its parent's template.
+HoleNode: These await being filled by expressions.
+LiteralNode: Holds an immutable string of text.
+InputNode: Holds a accept condition for user text input, and the most recent
+  input string from user.
 
 ExpressionNode -> Array<InstanceNode>
 
@@ -13,7 +20,11 @@ InstanceNode -> Array<HoleNode>
 InstanceNode -> Array<InputNode>
 InstanceNode -> Array<LiteralNode>
 
+HoleNode -> ExpressionNode
+
 InputNode -> LiteralNode ? (to hold the user string)
+
+(LiteralNode is a leaf)
 ###
 
 ###
@@ -47,7 +58,7 @@ Input ::=
   type: 'input'
   quantifier: [String]
   identifier: [String]
-  pattern: [String]
+  acceptCondition: [Function<String, Boolean>]
 ###
 
 
@@ -70,6 +81,7 @@ class ExpressionNode extends TreeModel
     super
       identifier: expression.identifier
       template: expression.pieces
+      quantifier: expression.quantifier
 
     ###
     @property [Array<InstanceNode>] instances An ordered list of this
@@ -91,16 +103,35 @@ class ExpressionNode extends TreeModel
   ###
   Creates and adds an empty instance to the end of this node's list of
     instances.
+  If this expression's quantifier is `'one'` or `'option'` and there already
+    exists an instance, does nothing.
   @return [InstanceNode] The newly created node.
   ###
   instantiate: () ->
     key = '#' + @_instanceIndex()
+    if (@value.quantifier is 'one') or (@value.quantifier is 'option')
+      if @instances.length > 0
+        return null
+
     @addChild key, new InstanceNode @template
+
+  ###
+  Removes the instance at the given numerical index, and returns the removed
+    `InstanceNode`.
+
+  @param [Integer] index The index of the instance to destroy.
+  @return [InstanceNode] The destroyed instance, or `null` if no instance at
+    that index.
+  ###
+  destroyInstance: (index) ->
+    @removeChild @orderedChildrenKeys[index]
 
 
 ###
 An `InstanceNode` is an instantiation of an `ExpressionNode`, which offers a
   buffer in which to fill the `ExpressionNode`'s template.
+An `ExpressionNode` can have multiple instances of itself as children. The
+  allowed number of instances correlates with the `ExpressionNode`'s quantifier.
 The `value` field of this node holds a reference to the parent
   `ExpressionNode`'s template.
 ###
@@ -170,28 +201,49 @@ class InstanceNode extends TreeModel
     literalCounter = 0
 
     @template
-      .forEach (piece) => switch piece.type
-      # TODO: wrap these in ExpressionNodes according to quantifiers
-        when 'hole'
-          # console.log 'adding hole'
-          @addChild \
-            ".#{piece.identifier}",
-            new HoleNode piece.identifier, piece.acceptCondition
-        when 'subexpression'
-          # console.log 'adding subexpr'
-          @addChild \
-            "@#{piece.identifier}",
-            new ExpressionNode piece
-        when 'literal'
-          console.log 'adding literal; todo'
-          @addChild "$#{literalCounter++}", new LiteralNode piece.text
-        when 'input' # ?
-          console.log 'adding input; todo'
-          @addChild \
-            "|#{piece.identifier}",
-            new InputNode input.identifier, input.pattern
-
-
+      .forEach (piece) =>
+        wrapInExpression = (pc) ->
+          r = new ExpressionNode
+            type: 'subexpression'
+            identifier: pc.identifier
+            quantifier: pc.quantifier
+            pieces: [_.assign pc, quantifier: 'one']
+        switch piece.quantifier
+          when 'one'
+            switch piece.type
+              when 'subexpression'
+                @addChild \
+                  "#{piece.identifier}",
+                  new ExpressionNode piece
+              when 'hole'
+                @addChild \
+                  "#{piece.identifier}",
+                  new HoleNode piece.identifier, piece.acceptCondition
+              when 'literal'
+                @addChild \
+                  "@#{literalCounter++}",
+                  new LiteralNode piece.text
+              when 'input'
+                @addChild \
+                  "#{piece.identifier}",
+                  new InputNode input.identifier, input.acceptCondition
+          when 'option', 'kleene'
+            switch piece.type
+              when 'subexpression'
+                @addChild \
+                  new ExpressionNode piece
+              when 'hole'
+                @addChild \
+                  "#{piece.identifier}", # I think this is safe from collision
+                  wrapInExpression piece, piece.quantifier
+              when 'input'
+                @addChild \
+                  "#{piece.identifier}",
+                  wrapInExpression piece, piece.quantifier
+              when 'literal'
+                @addChild \
+                  "@#{literalCounter++}",
+                  wrapInExpression piece, piece.quantifier
 
 
 ###
@@ -245,15 +297,55 @@ class HoleNode extends TreeModel
 
 
 ###
-TODO
+Represents a block of immutable text.
+
+PENDING: The user should have control over all syntax. What is the best way to
+  allow editing of literals?
 ###
 class LiteralNode extends TreeModel
+  constructor: (text) ->
+    super text: text
+
+    ###
+    @property text [String] The syntactical text which this node represents.
+    ###
+    Object.defineProperty this, 'text',
+      get: () -> @value.text
+
 
 ###
-TODO
+Represents a point where the user must input a string: identifiers, numbers,
+  string literals, etc.
 ###
 class InputNode extends TreeModel
+  ###
+  Constructs an `InputNode` with the piece's grammatical identifier, an accept
+    condition for its data (user text), and, optionally, an initial data value.
 
+  @param [String] identifier The piece's identifier within its template.
+  @param [Function<String, Boolean>] acceptCondition Returns `true` if this
+    input can accept the specified data.
+  @param [String] data The initial data value.
+  ###
+  constructor: (identifier, acceptCondition, data = null) ->
+    super
+      identifier: identifier
+      acceptCondition: acceptCondition
+      data: data
+
+  ###
+  @property acceptCondition [Function<String, Boolean>] Returns `true` if this
+    input can accept the specified data.
+  ###
+  Object.defineProperty this, 'acceptCondition',
+    get: () -> @value.acceptCondition
+
+  ###
+  @property data [String] The user-input data value.
+  ###
+  Object.defineProperty this, 'data',
+    get: () -> @value.data
+    set: (text) -> @value.data = text
 
 
 module.exports =
