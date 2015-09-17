@@ -1,3 +1,4 @@
+{Template} = require 'Grammar'
 TreeTransformer = require 'TreeTransformer'
 TreeModel = require 'TreeModel'
 HoleView = require 'views/HoleView'
@@ -22,7 +23,7 @@ class TreeViewTransformer
     (Object.keys @viewConstructors).forEach (type) =>
       @transformer.addNodeCase \
         (val, node) => node.constructor.name is type,
-        (val, node) => @viewConstructors[type] val, node
+        (val, node) => @viewConstructors[type].call this, val, node
 
 
   ###
@@ -53,7 +54,6 @@ class TreeViewTransformer
     @_subscriptions[id] = callback
     return () => delete @_subscriptions[id]
 
-
   viewConstructors:
     'ExpressionNode': (val, node) ->
       shouldShowAddButton =
@@ -78,8 +78,9 @@ class TreeViewTransformer
       elt.classList.add 'node'
       elt.classList.add 'hole'
 
-      Polymer.Gestures.add elt, 'up', () ->
-        console.log node
+      Polymer.Gestures.add elt, 'up', () =>
+        p = @grammar.productions[node.group]
+        node.fill p[Object.keys(p)[0]]
 
       return elt
 

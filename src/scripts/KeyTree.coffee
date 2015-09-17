@@ -17,8 +17,7 @@ Polymer
   _setup: () ->
     @$.tree.insertionPointSelector = '.children'
 
-    @root = new ST.HoleNode 'start', (expr) ->
-      expr.group == 'START'
+    @root = new ST.HoleNode 'start', 'START'
 
     # sb1 = new Subexpression 'subexpr1', 'kleene', [
     #   new Literal 'optional', '[ '
@@ -34,6 +33,7 @@ Polymer
     @transformer = new TreeViewTransformer @grammar
     @transformer.subscribe (transformed, original) =>
       @$.tree.model = transformed
+      # @$.tree.update()
     @transformer.watch @root
 
 
