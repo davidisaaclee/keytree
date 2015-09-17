@@ -27,13 +27,13 @@ describe 'syntax trees', () ->
           parseHelper = ({type, value, id, quantifier}) ->
             switch type
               when 'expression'
-                new Expression value.map parseHelper
+                new Template value.map parseHelper
               when 'literal'
                 new Literal value, quantifier
               when 'hole'
                 new Hole id, value, quantifier
               when 'subexpression'
-                new Subexpression (new Expression value.map parseHelper), quantifier, id
+                new Subexpression (new Template value.map parseHelper), quantifier, id
           parseHelper parseGrammar vi
     @grammar = new Grammar @rules
     @tree = new SyntaxTree @grammar, 'NE'

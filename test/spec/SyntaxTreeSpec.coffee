@@ -8,7 +8,9 @@ class MockPiece
   constructor: (@type) ->
 
 class MockHole extends MockPiece
-  constructor: (@identifier, @quantifier, @acceptCondition) ->
+  constructor: (@identifier, @quantifier, @group, @acceptCondition) ->
+    if not @acceptCondition?
+      @acceptCondition = (tmpl) => tmpl.group is @group
     super 'hole'
 
 class MockSubexpr extends MockPiece
@@ -26,13 +28,11 @@ class MockInput extends MockPiece
 
 describe 'Filling a syntax tree', () ->
   beforeEach () ->
-    @root = new ST.HoleNode 'start', (expr) ->
-      expr.group == 'START'
+    @root = new ST.HoleNode 'start', 'START'
 
     @sb1 = new MockSubexpr 'subexpr1', 'one', [
       new MockLiteral 'one', '[ '
-      new MockHole 'center', 'one', (exp) ->
-        exp.group is 'groupA'
+      new MockHole 'center', 'one', 'groupA'
       new MockLiteral 'one', ' ]'
     ]
 
@@ -47,6 +47,7 @@ describe 'Filling a syntax tree', () ->
     @sb4 = new MockSubexpr 'subexpr4', 'one', [
       new MockLiteral 'one', 'fiBBer'
     ]
+
 
   it 'works on a basic level', () ->
     @root.fill (new MockTemplate @sb1, 'START')
@@ -117,20 +118,19 @@ describe 'Filling a syntax tree', () ->
 
 describe 'Quantifiers', () ->
   beforeEach () ->
-    @root = new ST.HoleNode 'start', (expr) ->
-      expr.group == 'START'
+    @root = new ST.HoleNode 'start', 'START'
 
     @one = new MockSubexpr 'subexpr_one', 'one', [
       new MockLiteral 'one', 'david'
-      new MockHole 'abyss_option', 'optional', (exp) -> true
+      new MockHole 'abyss_option', 'optional', 'group', (exp) -> true
     ]
     @option = new MockSubexpr 'subexpr_option', 'optional', [
       new MockLiteral 'optional', 'david'
-      new MockHole 'abyss_kleene', 'kleene', (exp) -> true
+      new MockHole 'abyss_kleene', 'kleene', 'group', (exp) -> true
     ]
     @kleene = new MockSubexpr 'subexpr_kleene', 'kleene', [
       new MockLiteral 'kleene', 'david'
-      new MockHole 'abyss_one', 'one', (exp) -> true
+      new MockHole 'abyss_one', 'one', 'group', (exp) -> true
     ]
 
     @flag = new MockSubexpr 'subexpr_flag', 'one', [
@@ -150,16 +150,7 @@ describe 'Quantifiers', () ->
     expect @root.expression.instances
       .toBeDefined()
 
-
-    # inst1 = @root.expression.instantiate()
-    # inst1_ = @root.expression.instances[0]
-    # expect inst1
-    #   .toBe inst1_
-    # expect inst1
-    #   .not.toBeNull()
-
     inst1 = @root.expression.instances[0]
-
 
     # Since this is an optional hole, it created a subexpression for itself.
     expect inst1.holes['abyss_option']
@@ -224,7 +215,7 @@ describe 'Quantifiers', () ->
     kleeneExpr = new MockSubexpr 'kleeneExpr', 'kleene', [
       new MockLiteral 'one', 'david'
       new MockLiteral 'kleene', 'kleene_literal'
-      new MockHole 'abyss_option', 'optional', (exp) -> true
+      new MockHole 'abyss_option', 'optional', null, (exp) -> true
     ]
 
     @root.fill (new MockTemplate kleeneExpr, 'START')

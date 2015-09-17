@@ -9,11 +9,13 @@ var jade       = require('gulp-jade');
 var notify     = require('gulp-notify');
 // var jasmine    = require('gulp-jasmine');
 var jasmineBr  = require('gulp-jasmine-browser');
+var codo       = require('gulp-codo');
 var source     = require('vinyl-source-stream');
 var sourcemaps = require('gulp-sourcemaps');
 var watch      = require('gulp-watch');
 var buffer     = require('vinyl-buffer');
 var del        = require('del');
+var exec       = require('child_process').exec;
 
 
 var options = {};
@@ -70,6 +72,15 @@ options['build-tests'] = {
     entries: './test-bundle.coffee',
     outputName: 'test-bundle.js',
     transform: [coffeeify]
+  }
+};
+
+options['doc'] = {
+  src: './src/**/*.coffee',
+  options: {
+    name: 'KeyTree',
+    title: 'KeyTree documentation',
+    dir: './doc'
   }
 };
 
@@ -167,9 +178,35 @@ gulp.task('watch', function () {
 });
 
 gulp.task('clean', function () {
-  del([
-    'build/**'
-  ]);
+  return del([ 'build/**' ]);
+});
+
+
+gulp.task('clean-doc', function () {
+  return del([ 'doc/** ']);
+})
+
+gulp.task('doc', ['clean-doc'], function () {
+  var opts = (function makeOptionString (src, optionObj) {
+    var result = src;
+    if (optionObj.hasOwnProperty('name'))
+      result += ' --name "' + optionObj.name + '"';
+    if (optionObj.hasOwnProperty('title'))
+      result += ' --title "' + optionObj.title + '"';
+    if (optionObj.hasOwnProperty('readme'))
+      result += ' --readme ' + optionObj.readme;
+    if (optionObj.hasOwnProperty('dir'))
+      result += ' --output ' + optionObj.dir;
+    return result;
+  })(options.doc.src, options.doc.options);
+
+  var done = false
+  exec('codo ' + opts, function () {
+    done = true;
+  });
+  // return gulp.src(options.doc.src)
+  //   .on('error', onError)
+  //   .pipe(codo(options.doc.options));
 });
 
 function onError (err) {

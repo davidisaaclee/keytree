@@ -12859,7 +12859,7 @@ module.exports = function(obj) {
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
 },{}],5:[function(require,module,exports){
-var ExpressionNode, HoleNode, InputNode, InstanceNode, LiteralNode, TreeModel, _,
+var ExpressionNode, HoleNode, InputNode, InstanceNode, LiteralNode, TreeModel, _, render,
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
 
@@ -12916,6 +12916,7 @@ Hole ::=
   quantifier: [String]
   identifier: [String]
   acceptCondition: [Function<Template, Boolean>]
+  group: [String]
 
 Literal ::=
   type: 'literal'
@@ -13118,15 +13119,16 @@ InstanceNode = (function(superClass) {
       return function(piece) {
         var wrapInExpression;
         wrapInExpression = function(pc) {
-          var oneified, r;
-          oneified = _.extend(_.clone(pc), {
-            quantifier: 'one'
-          });
+          var r;
           return r = new ExpressionNode({
             type: 'subexpression',
             identifier: pc.identifier,
             quantifier: pc.quantifier,
-            pieces: [oneified]
+            pieces: [
+              _.extend(_.clone(pc), {
+                quantifier: 'one'
+              })
+            ]
           });
         };
         switch (piece.quantifier) {
@@ -13135,7 +13137,7 @@ InstanceNode = (function(superClass) {
               case 'subexpression':
                 return _this.addChild("" + piece.identifier, new ExpressionNode(piece));
               case 'hole':
-                return _this.addChild("" + piece.identifier, new HoleNode(piece.identifier, piece.acceptCondition));
+                return _this.addChild("" + piece.identifier, new HoleNode(piece.identifier, piece.group, piece.acceptCondition));
               case 'literal':
                 return _this.addChild("@" + (literalCounter++), new LiteralNode(piece.text));
               case 'input':
@@ -13176,18 +13178,22 @@ HoleNode = (function(superClass) {
 
 
   /*
+  @param [String] identifier
+  @param [String] group The identifier of the grammatical group which
+    this hole can accept.
   @param [Function<Template, Boolean>] acceptCondition Returns `true`
     if this hole can accept the specified template.
    */
 
-  function HoleNode(identifier, acceptCondition) {
+  function HoleNode(identifier, group, acceptCondition) {
     if (acceptCondition == null) {
-      acceptCondition = (function() {
-        return false;
-      });
+      acceptCondition = function(template) {
+        return template.group === group;
+      };
     }
     HoleNode.__super__.constructor.call(this, {
       identifier: identifier,
+      group: group,
       acceptCondition: acceptCondition
     });
 
@@ -13218,6 +13224,16 @@ HoleNode = (function(superClass) {
     Object.defineProperty(this, 'acceptCondition', {
       get: function() {
         return this.value.acceptCondition;
+      }
+    });
+
+    /*
+    @property [String] group The identifier of the grammatical group which this
+    hole can accept.
+     */
+    Object.defineProperty(this, 'group', {
+      get: function() {
+        return this.value.group;
       }
     });
   }
@@ -13302,48 +13318,719 @@ InputNode = (function(superClass) {
       acceptCondition: acceptCondition,
       data: data
     });
+
+    /*
+    @property acceptCondition [Function<String, Boolean>] Returns `true` if this
+      input can accept the specified data.
+     */
+    Object.defineProperty(this, 'acceptCondition', {
+      get: function() {
+        return this.value.acceptCondition;
+      }
+    });
+
+    /*
+    @property data [String] The user-input data value.
+     */
+    Object.defineProperty(this, 'data', {
+      get: function() {
+        return this.value.data;
+      },
+      set: function(text) {
+        return this.value.data = text;
+      }
+    });
+
+    /*
+    @property display [String] A string to display when not filled.
+     */
+    Object.defineProperty(this, 'display', {
+      get: function() {
+        return this.value.display;
+      }
+    });
   }
-
-
-  /*
-  @property acceptCondition [Function<String, Boolean>] Returns `true` if this
-    input can accept the specified data.
-   */
-
-  Object.defineProperty(InputNode, 'acceptCondition', {
-    get: function() {
-      return this.value.acceptCondition;
-    }
-  });
-
-
-  /*
-  @property data [String] The user-input data value.
-   */
-
-  Object.defineProperty(InputNode, 'data', {
-    get: function() {
-      return this.value.data;
-    },
-    set: function(text) {
-      return this.value.data = text;
-    }
-  });
 
   return InputNode;
 
 })(TreeModel);
+
+render = function(node) {
+  switch (node.constructor.name) {
+    case 'ExpressionNode':
+      return node.instances.reduce((function(acc, elm) {
+        return acc += render(elm);
+      }), '');
+    case 'InstanceNode':
+      return node.childList.reduce((function(acc, elm) {
+        return acc += render(elm);
+      }), '');
+    case 'HoleNode':
+      if (node.isFilled) {
+        return render(node.expression);
+      } else {
+        return "<" + node.value.identifier + ">";
+      }
+      break;
+    case 'LiteralNode':
+      return node.text;
+    case 'InputNode':
+      if (node.data != null) {
+        return node.data;
+      } else {
+        return "<" + node.display + ">";
+      }
+  }
+};
 
 module.exports = {
   ExpressionNode: ExpressionNode,
   InstanceNode: InstanceNode,
   HoleNode: HoleNode,
   LiteralNode: LiteralNode,
-  InputNode: InputNode
+  InputNode: InputNode,
+  render: render
 };
 
 
 },{"TreeModel":1,"lodash":4}],6:[function(require,module,exports){
+var Mode, ModeManager, _,
+  slice = [].slice;
+
+_ = require('lodash');
+
+Mode = (function() {
+  function Mode(manager, name1, fields) {
+    this.name = name1;
+    this.open = fields.open, this.close = fields.close, this.canTransitionTo = fields.canTransitionTo, this.background = fields.background;
+    this.before = (function(_this) {
+      return function(data) {
+        manager._forEach(_this.canTransitionTo, function(mode) {
+          return mode.open();
+        });
+        return fields.before(data);
+      };
+    })(this);
+    this.after = (function(_this) {
+      return function() {
+        manager._forEach(_this.canTransitionTo, function(mode) {
+          return mode.close();
+        });
+        return fields.after();
+      };
+    })(this);
+  }
+
+  return Mode;
+
+})();
+
+ModeManager = (function() {
+  ModeManager.prototype._activeMode = null;
+
+  function ModeManager(context1) {
+    this.context = context1;
+    this._modes = {};
+    Object.defineProperty(this, 'mode', {
+      get: function() {
+        if (this._activeMode) {
+          return this._activeMode.name;
+        } else {
+          return null;
+        }
+      }
+    });
+  }
+
+  ModeManager.prototype.start = function(initialMode) {
+    return this.setMode(initialMode);
+  };
+
+  ModeManager.prototype.stop = function() {
+    var ref;
+    return this._forEach((ref = this._activeMode) != null ? ref.canTransitionTo : void 0, (function(_this) {
+      return function(mode) {
+        return mode.close();
+      };
+    })(this));
+  };
+
+  ModeManager.prototype.resume = function() {
+    var ref;
+    return this._forEach((ref = this._activeMode) != null ? ref.canTransitionTo : void 0, (function(_this) {
+      return function(mode) {
+        return mode.open();
+      };
+    })(this));
+  };
+
+
+  /*
+  Add a new mode to the manager.
+  Returns the manager for chaining.
+  
+  The second argument is an object with fields:
+  
+    canTransitionTo: a list of mode names which this mode can transition to
+    checkAccept: a function which accepts an `accept` procedure (which, when called,
+      sets the current mode to this one), and returns an "start-stop object",
+      which is started when this mode can be transitioned to, and stopped when
+      this mode can no longer be transitioned to.
+    active: a function with no parameters, which returns an "start-stop object",
+      which is started when this mode is entered, and stopped when this mode is
+      exited.
+  
+  Both `accept` and `active` are bound to this ModeManager's `context`. If you
+    want to use `context` as `this` in your start-stop object, use a fat arrow
+    (or Function::bind). Otherwise, `this` in your start-stop object will refer
+    to the `Mode` object which `ModeManager` creates.
+  [TODO: Not certain if there's any benefit to this... Might change it so the
+    context is alwasy bound.]
+  
+  start-stop objects:
+    start: ->
+    stop: ->
+  
+  Example usage:
+  
+  manager.add 'my-mode',
+    parent: 'my-parent-mode'
+  
+    canTransitionTo: ['my-sibling-mode']
+  
+    checkAccept: (accept) ->
+       * useful to define event listeners in `checkAccept`,
+       *   for reference in adding and removing
+      checkEvent = (evt) ->
+        if evt.mode is 'my-mode'
+          do accept
+  
+      start: () ->
+        window.addEventListener 'switch-modes', checkEvent
+      stop: () ->
+        window.removeEventListener 'switch-modes', checkEvent
+  
+    active: (release, reclaim) ->
+      ifKey = (keycode, cb) -> (evt) ->
+        if evt.which is keycode
+          do cb
+      keycodes =
+        esc: 27
+        tab: 9
+  
+      start: () ->
+        window.addEventListener (ifKey keycodes.esc, release)
+      stop: () ->
+        window.removeEventListener (ifKey keycodes.esc, release)
+      background: () ->
+        window.removeEventListener (ifKey keycodes.tab, reclaim)
+   */
+
+  ModeManager.prototype.add = function(name, options) {
+    var accept, acceptResult, activeResult, context, reclaim, release;
+    options = _.defaults(options, {
+      parent: null,
+      canTransitionTo: [],
+      checkAccept: function() {
+        return {
+          start: function() {},
+          stop: function() {}
+        };
+      },
+      active: function() {
+        return {
+          start: function() {},
+          stop: function() {},
+          background: function() {}
+        };
+      }
+    });
+    accept = (function(_this) {
+      return function(data) {
+        if (_this.mode === options.parent) {
+          _this._activeMode.background();
+        }
+        return _this.setMode(name, data);
+      };
+    })(this);
+    release = (function(_this) {
+      return function(data) {
+        return _this.setMode(options.parent, data);
+      };
+    })(this);
+    reclaim = (function(_this) {
+      return function(data) {
+        return _this.setMode(name, data);
+      };
+    })(this);
+    acceptResult = _.defaults((this._bind(options.checkAccept))(accept), {
+      start: function() {},
+      stop: function() {}
+    });
+    activeResult = _.defaults((this._bind(options.active))(release, reclaim), {
+      start: function() {},
+      stop: function() {},
+      background: function() {}
+    });
+    context = this;
+    this._modes[name] = new Mode(this, name, {
+      parent: options.parent,
+      canTransitionTo: options.canTransitionTo,
+      open: context._bind(acceptResult.start),
+      close: context._bind(acceptResult.stop),
+      before: context._bind(activeResult.start),
+      background: context._bind(activeResult.background),
+      after: context._bind(activeResult.stop)
+    });
+    return this;
+  };
+
+  ModeManager.prototype.get = function(modeName) {
+    return this._modes[modeName];
+  };
+
+  ModeManager.prototype.setMode = function(modeName, data) {
+    if ((this._activeMode != null) && modeName === this._activeMode.name) {
+      return;
+    }
+    if (this._activeMode != null) {
+      this._activeMode.after();
+    }
+    this._activeMode = this.get(modeName);
+    this._activeMode.before(data);
+    return this._activeMode;
+  };
+
+  ModeManager.prototype._forEach = function(modeNames, proc) {
+    return modeNames.forEach((function(_this) {
+      return function(modeName) {
+        var mode;
+        mode = _this.get(modeName);
+        if (mode != null) {
+          return proc(mode);
+        } else {
+          return console.error('No such mode ', modeName);
+        }
+      };
+    })(this));
+  };
+
+  ModeManager.prototype._bind = function() {
+    var args, fn;
+    fn = arguments[0], args = 2 <= arguments.length ? slice.call(arguments, 1) : [];
+    return _.bind.apply(_, [fn, this.context].concat(slice.call(args)));
+  };
+
+  return ModeManager;
+
+})();
+
+module.exports = ModeManager;
+
+
+},{"lodash":4}],7:[function(require,module,exports){
+var ModeManager, _;
+
+_ = require('lodash');
+
+ModeManager = require('util/ModeManager');
+
+describe('basic mode manager', function() {
+  beforeEach(function() {
+    var context;
+    this.context = context = {
+      foo: 3,
+      bar: false
+    };
+    this.manager = new ModeManager(this.context);
+    return this.manager.add('base', {
+      canTransitionTo: [],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {},
+          stop: function() {}
+        };
+      },
+      active: function() {
+        return {
+          start: function() {
+            return this.foo = 5;
+          },
+          stop: function() {
+            return this.foo = 10;
+          }
+        };
+      }
+    });
+  });
+  afterEach(function() {
+    return this.manager.stop();
+  });
+  it('can have a mode', function() {
+    this.manager.start('base');
+    return expect(this.manager.mode).toBe('base');
+  });
+  it('can mutate context', function() {
+    this.manager.start('base');
+    expect(this.manager.mode).toBe('base');
+    expect(this.context.foo).toBe(5);
+    this.manager.stop();
+    expect(this.manager.mode).toBe('base');
+    return expect(this.context.foo).toBe(5);
+  });
+  return it('passes context correctly', function() {
+    var context, track;
+    context = this.context;
+    track = jasmine.createSpy('track');
+    this.manager.add('base2', {
+      canTransitionTo: ['base3'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {},
+          stop: function() {}
+        };
+      },
+      active: function() {
+        expect(this).toBe(context);
+        track();
+        return {
+          start: function() {
+            expect(this).toBe(context);
+            return track();
+          },
+          stop: function() {
+            expect(this).toBe(context);
+            return track();
+          }
+        };
+      }
+    });
+    this.manager.add('base3', {
+      canTransitionTo: [],
+      checkAccept: function(acceptFn) {
+        expect(this).toBe(context);
+        this.transition = acceptFn;
+        track();
+        return {
+          start: function() {
+            expect(this).toBe(context);
+            return track();
+          },
+          stop: function() {
+            expect(this).toBe(context);
+            return track();
+          }
+        };
+      },
+      active: function() {
+        return {
+          start: function() {},
+          stop: function() {}
+        };
+      }
+    });
+    this.manager.start('base2');
+    this.context.transition();
+    expect(this.manager.mode).toBe('base3');
+    return expect(track.calls.count()).toBe(6);
+  });
+});
+
+describe('intermediate mode manager', function() {
+  beforeEach(function() {
+    var transitions;
+    this.context = {
+      currentMode: 'none'
+    };
+    this.manager = new ModeManager(this.context);
+    this.transitions = transitions = {};
+    return this.manager.add('left', {
+      canTransitionTo: ['center'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return transitions.left = acceptFn;
+          },
+          stop: function() {
+            return transitions.left = null;
+          }
+        };
+      },
+      active: function(release, reclaim) {
+        return {
+          start: function(data) {
+            this.currentMode = 'left';
+            return this.foo = data != null ? data.foo : void 0;
+          },
+          stop: function() {
+            this.foo = void 0;
+            return this.currentMode = 'none';
+          }
+        };
+      }
+    }).add('center', {
+      canTransitionTo: ['left', 'right'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return transitions.center = acceptFn;
+          },
+          stop: function() {
+            return transitions.center = null;
+          }
+        };
+      },
+      active: function(release, reclaim) {
+        return {
+          start: function() {
+            return this.currentMode = 'center';
+          },
+          stop: function() {
+            return this.currentMode = 'none';
+          }
+        };
+      }
+    }).add('right', {
+      canTransitionTo: ['center'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return transitions.right = acceptFn;
+          },
+          stop: function() {
+            return transitions.right = null;
+          }
+        };
+      },
+      active: function(release, reclaim) {
+        return {
+          start: function() {
+            return this.currentMode = 'right';
+          },
+          stop: function() {
+            return this.currentMode = 'none';
+          }
+        };
+      }
+    });
+  });
+  afterEach(function() {
+    return this.manager.stop();
+  });
+  it('can switch modes', function() {
+    this.manager.start('left');
+    expect(this.context.currentMode).toBe('left');
+    this.transitions.center();
+    expect(this.context.currentMode).toBe('center');
+    this.transitions.right();
+    expect(this.context.currentMode).toBe('right');
+    expect(this.transitions.left).toBeNull();
+    this.transitions.center();
+    expect(this.context.currentMode).toBe('center');
+    this.manager.stop();
+    expect(this.transitions.left).toBeNull();
+    return expect(this.transitions.right).toBeNull();
+  });
+  return it('can pass data', function() {
+    this.manager.start('center');
+    expect(this.context.foo).toBeUndefined();
+    this.transitions.left({
+      foo: 'passed'
+    });
+    expect(this.context.foo).toBe('passed');
+    this.transitions.center();
+    return expect(this.context.foo).toBeUndefined();
+  });
+});
+
+describe('layered mode manager', function() {
+  beforeEach(function() {
+    this.context = {
+      topMode: 'none',
+      transitions: {}
+    };
+    this.manager = new ModeManager(this.context);
+    return this.manager.add('left', {
+      canTransitionTo: ['right', 'leftright'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return this.transitions.left = acceptFn;
+          },
+          stop: function() {
+            return this.transitions.left = null;
+          }
+        };
+      },
+      active: function(releaseFn, reclaimFn) {
+        return {
+          start: function() {
+            return this.topMode = 'left';
+          },
+          stop: function() {
+            return this.topMode = 'none';
+          },
+          background: function() {
+            return this.transitions.reclaimLeft = reclaimFn;
+          }
+        };
+      }
+    }).add('right', {
+      canTransitionTo: ['left'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return this.transitions.right = acceptFn;
+          },
+          stop: function() {
+            return this.transitions.right = null;
+          }
+        };
+      },
+      active: function() {
+        return {
+          start: function() {
+            return this.topMode = 'right';
+          },
+          stop: function() {
+            return this.topMode = 'none';
+          }
+        };
+      }
+    }).add('leftright', {
+      parent: 'left',
+      canTransitionTo: ['leftleft', 'right', 'leftrightstack'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return this.transitions.leftright = acceptFn;
+          },
+          stop: function() {
+            return this.transitions.leftright = null;
+          }
+        };
+      },
+      active: function(releaseFn, reclaimFn) {
+        return {
+          start: function() {
+            this.topMode = 'leftright';
+            this.transitions.releaseLR = releaseFn;
+            return this.leftrightPaused = false;
+          },
+          stop: function() {
+            return this.topMode = 'none';
+          },
+          background: function() {
+            this.leftrightPaused = true;
+            this.transitions.reclaimLR = reclaimFn;
+            return this.transitions.popToLeft = releaseFn;
+          }
+        };
+      }
+    }).add('leftleft', {
+      parent: 'left',
+      canTransitionTo: ['leftright'],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return this.transitions.leftleft = acceptFn;
+          },
+          stop: function() {
+            return this.transitions.leftleft = null;
+          }
+        };
+      },
+      active: function(releaseFn) {
+        return {
+          start: function(data) {
+            this.topMode = 'leftleft';
+            this.transitions.release = releaseFn;
+            this.transitions.reclaim = null;
+            return this.transitions.popToRoot = null;
+          },
+          stop: function() {
+            return this.topMode = 'none';
+          }
+        };
+      }
+    }).add('leftrightstack', {
+      parent: 'leftright',
+      canTransitionTo: [],
+      checkAccept: function(acceptFn) {
+        return {
+          start: function() {
+            return this.transitions.acceptLRS = acceptFn;
+          },
+          stop: function() {}
+        };
+      },
+      active: function(releaseFn) {
+        return {
+          start: function() {
+            return this.transitions.releaseLRS = releaseFn;
+          },
+          stop: function() {
+            return this.transitions.releaseLRS = null;
+          }
+        };
+      }
+    });
+  });
+  afterEach(function() {
+    return this.manager.stop();
+  });
+  it('can navigate layered modes', function() {
+    this.manager.start('right');
+    expect(this.manager.mode).toBe('right');
+    expect(this.context.transitions.leftleft).toBeFalsy();
+    expect(this.context.transitions.leftright).toBeFalsy();
+    this.context.transitions.left();
+    expect(this.manager.mode).toBe('left');
+    expect(this.context.transitions.leftleft).toBeFalsy();
+    expect(this.context.transitions.leftright).toBeTruthy();
+    this.context.transitions.leftright();
+    expect(this.manager.mode).toBe('leftright');
+    this.context.transitions.leftleft();
+    expect(this.manager.mode).toBe('leftleft');
+    this.context.transitions.release();
+    expect(this.manager.mode).toBe('left');
+    this.context.transitions.leftright();
+    this.context.transitions.reclaimLeft();
+    return expect(this.manager.mode).toBe('left');
+  });
+  it('can jump layers', function() {
+    this.manager.start('left');
+    this.context.transitions.leftright();
+    expect(this.manager.mode).toBe('leftright');
+    this.context.transitions.right();
+    expect(this.manager.mode).toBe('right');
+    return expect(this.context.transitions.release).toBeFalsy();
+  });
+  return it('can release multiple frames', function() {
+    this.manager.start('left');
+    this.context.transitions.leftright();
+    expect(this.manager.mode).toBe('leftright');
+    this.context.transitions.acceptLRS();
+    expect(this.manager.mode).toBe('leftrightstack');
+    this.context.transitions.releaseLRS();
+    expect(this.manager.mode).toBe('leftright');
+    this.context.transitions.acceptLRS();
+    expect(this.manager.mode).toBe('leftrightstack');
+    expect(this.context.leftrightPaused).toBe(true);
+    this.context.transitions.reclaimLR();
+    expect(this.manager.mode).toBe('leftright');
+    expect(this.context.leftrightPaused).toBe(false);
+    this.context.transitions.acceptLRS();
+    expect(this.manager.mode).toBe('leftrightstack');
+    expect(this.context.leftrightPaused).toBe(true);
+    this.context.transitions.popToLeft();
+    expect(this.manager.mode).toBe('left');
+    return expect(this.context.transitions.releaseLRS).toBeNull();
+  });
+});
+
+
+},{"lodash":4,"util/ModeManager":6}],8:[function(require,module,exports){
 var MockHole, MockInput, MockLiteral, MockPiece, MockSubexpr, MockTemplate, ST,
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
@@ -13372,10 +14059,18 @@ MockPiece = (function() {
 MockHole = (function(superClass) {
   extend(MockHole, superClass);
 
-  function MockHole(identifier, quantifier, acceptCondition) {
+  function MockHole(identifier, quantifier, group, acceptCondition) {
     this.identifier = identifier;
     this.quantifier = quantifier;
+    this.group = group;
     this.acceptCondition = acceptCondition;
+    if (this.acceptCondition == null) {
+      this.acceptCondition = (function(_this) {
+        return function(tmpl) {
+          return tmpl.group === _this.group;
+        };
+      })(this);
+    }
     MockHole.__super__.constructor.call(this, 'hole');
   }
 
@@ -13426,14 +14121,8 @@ MockInput = (function(superClass) {
 
 describe('Filling a syntax tree', function() {
   beforeEach(function() {
-    this.root = new ST.HoleNode('start', function(expr) {
-      return expr.group === 'START';
-    });
-    this.sb1 = new MockSubexpr('subexpr1', 'one', [
-      new MockLiteral('one', '[ '), new MockHole('center', 'one', function(exp) {
-        return exp.group === 'groupA';
-      }), new MockLiteral('one', ' ]')
-    ]);
+    this.root = new ST.HoleNode('start', 'START');
+    this.sb1 = new MockSubexpr('subexpr1', 'one', [new MockLiteral('one', '[ '), new MockHole('center', 'one', 'groupA'), new MockLiteral('one', ' ]')]);
     this.sb2 = new MockSubexpr('subexpr2', 'one', [new MockLiteral('one', 'fi11er')]);
     this.sb3 = new MockSubexpr('subexpr3', 'one', [new MockLiteral('one', 'fi22er')]);
     return this.sb4 = new MockSubexpr('subexpr4', 'one', [new MockLiteral('one', 'fiBBer')]);
@@ -13475,21 +14164,19 @@ describe('Filling a syntax tree', function() {
 
 describe('Quantifiers', function() {
   beforeEach(function() {
-    this.root = new ST.HoleNode('start', function(expr) {
-      return expr.group === 'START';
-    });
+    this.root = new ST.HoleNode('start', 'START');
     this.one = new MockSubexpr('subexpr_one', 'one', [
-      new MockLiteral('one', 'david'), new MockHole('abyss_option', 'optional', function(exp) {
+      new MockLiteral('one', 'david'), new MockHole('abyss_option', 'optional', 'group', function(exp) {
         return true;
       })
     ]);
     this.option = new MockSubexpr('subexpr_option', 'optional', [
-      new MockLiteral('optional', 'david'), new MockHole('abyss_kleene', 'kleene', function(exp) {
+      new MockLiteral('optional', 'david'), new MockHole('abyss_kleene', 'kleene', 'group', function(exp) {
         return true;
       })
     ]);
     this.kleene = new MockSubexpr('subexpr_kleene', 'kleene', [
-      new MockLiteral('kleene', 'david'), new MockHole('abyss_one', 'one', function(exp) {
+      new MockLiteral('kleene', 'david'), new MockHole('abyss_one', 'one', 'group', function(exp) {
         return true;
       })
     ]);
@@ -13528,7 +14215,7 @@ describe('Quantifiers', function() {
   return it('work across instances', function() {
     var abyssOpt_0, abyssOpt_1, abyssOpt_2, instances, kleeneExpr, kleeneLit_0, kleeneLit_1, kleeneLit_2;
     kleeneExpr = new MockSubexpr('kleeneExpr', 'kleene', [
-      new MockLiteral('one', 'david'), new MockLiteral('kleene', 'kleene_literal'), new MockHole('abyss_option', 'optional', function(exp) {
+      new MockLiteral('one', 'david'), new MockLiteral('kleene', 'kleene_literal'), new MockHole('abyss_option', 'optional', null, function(exp) {
         return true;
       })
     ]);
@@ -13571,11 +14258,13 @@ describe('Quantifiers', function() {
 });
 
 
-},{"SyntaxTree":5}],7:[function(require,module,exports){
+},{"SyntaxTree":5}],9:[function(require,module,exports){
+require('spec/ModeManagerSpec');
+
 require('spec/SyntaxTreeSpec');
 
 
-},{"spec/SyntaxTreeSpec":6}]},{},[7])
+},{"spec/ModeManagerSpec":7,"spec/SyntaxTreeSpec":8}]},{},[9])
 
 
 //# sourceMappingURL=test-bundle.js.map

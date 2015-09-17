@@ -17,6 +17,7 @@
     "gulp": "^3.9.0",
     "gulp-browserify": "^0.5.1",
     "gulp-changed": "^1.2.1",
+    "gulp-codo": "^1.0.3",
     "gulp-coffeeify": "^0.1.8",
     "gulp-jade": "^1.0.1",
     "gulp-jasmine": "^2.0.1",

@@ -12,26 +12,80 @@ Polymer
   is: 'key-tree'
 
   ready: () ->
+    @_setup()
+
+  _setup: () ->
     @$.tree.insertionPointSelector = '.children'
 
     @root = new ST.HoleNode 'start', (expr) ->
       expr.group == 'START'
-    sb1 = new Subexpression 'subexpr1', 'kleene', [
-      new Literal 'optional', '[ '
-      new Hole 'center', 'one', 'groupA'
-      new Input 'in1', 'kleene', '.*'
-    ]
-    x = @root.fill (new Template 'START', sb1)
-    x.instantiate()
-    @root.expression.instances[0].holes['center'].fill (new Template 'groupA', sb1)
 
-    @transformer = new TreeViewTransformer()
+    # sb1 = new Subexpression 'subexpr1', 'kleene', [
+    #   new Literal 'optional', '[ '
+    #   new Hole 'center', 'one', 'groupA'
+    #   new Input 'in1', 'kleene', '.*'
+    # ]
+    # x = @root.fill (new Template 'START', sb1)
+    # x.instantiate()
+    # @root.expression.instances[0].holes['center'].fill (new Template 'groupA', sb1)
+
+    @loadGrammar()
+
+    @transformer = new TreeViewTransformer @grammar
     @transformer.subscribe (transformed, original) =>
       @$.tree.model = transformed
-      do @$.tree.update
     @transformer.watch @root
 
 
+  loadGrammar: () ->
+    litRules =
+      'START':
+        'start': '<start:NE>'
+      'NE':
+        'num-lit': '"(num " <digits:N> ")"'
+        'arith-op': '"(arith " <rator:A> "\n\t" <randl:NE> "\n\t" <randr:NE> ")"'
+        'list': '"(list " <element:NE>* ")"'
+        'list-lit': '"[" (<hd:NE> (", " <tl:NE>)*)? "]"'
+        'variable': '<identifier:\\any>'
+      'N':
+        # 'digits': '"digit placeholder"'
+        'digits': '<digits:\\numbers>'
+      'A':
+        'add': '"+"'
+        'subtract': '"-"'
+        'multiply': '"*"'
+        'divide': '"/"'
+
+    grammarText = @querySelector '#grammarText'
+    setGrammar = @querySelector '#setGrammar'
+
+    grammarText.value = JSON.stringify litRules, null, 2
+
+    loadRulesFromTextarea = () =>
+      rulesText = JSON.parse grammarText.value
+      mock = {}
+      mock.rules =
+        _.mapValues rulesText, (vo, group) ->
+          _.mapValues vo, (vi, key) ->
+            parseHelper = ({type, id, quantifier, value}) ->
+              switch type
+                when 'expression'
+                  new Template group, (value.map parseHelper)
+                when 'literal'
+                  new Literal quantifier, value
+                when 'hole'
+                  new Hole id, quantifier, value
+                when 'input'
+                  new Input id, quantifier, value
+                when 'subexpression'
+                  new Subexpression id, quantifier, (value.map parseHelper)
+            parseHelper parseGrammar vi
+      @grammar = new Grammar mock.rules
+
+    do loadRulesFromTextarea
+    Polymer.Gestures.add setGrammar, 'up', loadRulesFromTextarea
+    Polymer.Gestures.add @$.render, 'up', (evt) =>
+      alert ST.render @root
 
 # Polymer
 #   is: 'key-tree'

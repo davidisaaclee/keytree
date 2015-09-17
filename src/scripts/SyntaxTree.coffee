@@ -48,6 +48,7 @@ Hole ::=
   quantifier: [String]
   identifier: [String]
   acceptCondition: [Function<Template, Boolean>]
+  group: [String]
 
 Literal ::=
   type: 'literal'
@@ -206,12 +207,11 @@ class InstanceNode extends TreeModel
     @template
       .forEach (piece) =>
         wrapInExpression = (pc) ->
-          oneified = _.extend (_.clone pc), quantifier: 'one'
           r = new ExpressionNode
             type: 'subexpression'
             identifier: pc.identifier
             quantifier: pc.quantifier
-            pieces: [oneified]
+            pieces: [_.extend (_.clone pc), quantifier: 'one']
         switch piece.quantifier
           when 'one'
             switch piece.type
@@ -222,7 +222,7 @@ class InstanceNode extends TreeModel
               when 'hole'
                 @addChild \
                   "#{piece.identifier}",
-                  new HoleNode piece.identifier, piece.acceptCondition
+                  new HoleNode piece.identifier, piece.group, piece.acceptCondition
               when 'literal'
                 @addChild \
                   "@#{literalCounter++}",
@@ -258,12 +258,19 @@ The `value` field of this node holds a predicate to determine which expressions
 ###
 class HoleNode extends TreeModel
   ###
+  @param [String] identifier
+  @param [String] group The identifier of the grammatical group which
+    this hole can accept.
   @param [Function<Template, Boolean>] acceptCondition Returns `true`
     if this hole can accept the specified template.
   ###
-  constructor: (identifier, acceptCondition = (-> false)) ->
+  constructor: (identifier, group, acceptCondition) ->
+    if not acceptCondition?
+      acceptCondition = (template) -> template.group is group
+
     super
       identifier: identifier
+      group: group
       acceptCondition: acceptCondition
 
     ###
@@ -286,6 +293,13 @@ class HoleNode extends TreeModel
     ###
     Object.defineProperty this, 'acceptCondition',
       get: () -> @value.acceptCondition
+
+    ###
+    @property [String] group The identifier of the grammatical group which this
+    hole can accept.
+    ###
+    Object.defineProperty this, 'group',
+      get: () -> @value.group
 
   ###
   @param [Template] template The subexpression with which to fill this hole.
@@ -339,20 +353,43 @@ class InputNode extends TreeModel
       acceptCondition: acceptCondition
       data: data
 
-  ###
-  @property acceptCondition [Function<String, Boolean>] Returns `true` if this
-    input can accept the specified data.
-  ###
-  Object.defineProperty this, 'acceptCondition',
-    get: () -> @value.acceptCondition
+    ###
+    @property acceptCondition [Function<String, Boolean>] Returns `true` if this
+      input can accept the specified data.
+    ###
+    Object.defineProperty this, 'acceptCondition',
+      get: () -> @value.acceptCondition
 
-  ###
-  @property data [String] The user-input data value.
-  ###
-  Object.defineProperty this, 'data',
-    get: () -> @value.data
-    set: (text) -> @value.data = text
+    ###
+    @property data [String] The user-input data value.
+    ###
+    Object.defineProperty this, 'data',
+      get: () -> @value.data
+      set: (text) -> @value.data = text
 
+    ###
+    @property display [String] A string to display when not filled.
+    ###
+    Object.defineProperty this, 'display',
+      get: () -> @value.display
+
+
+render = (node) ->
+  switch node.constructor.name
+    when 'ExpressionNode'
+      node.instances.reduce ((acc, elm) -> acc += render elm), ''
+    when 'InstanceNode'
+      node.childList.reduce ((acc, elm) -> acc += render elm), ''
+    when 'HoleNode'
+      if node.isFilled
+      then render node.expression
+      else "<#{node.value.identifier}>"
+    when 'LiteralNode'
+      node.text
+    when 'InputNode'
+      if node.data?
+      then node.data
+      else "<#{node.display}>"
 
 module.exports =
   ExpressionNode: ExpressionNode
@@ -360,3 +397,4 @@ module.exports =
   HoleNode: HoleNode
   LiteralNode: LiteralNode
   InputNode: InputNode
+  render: render

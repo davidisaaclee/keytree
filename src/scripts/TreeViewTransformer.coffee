@@ -11,7 +11,7 @@ class NodeView
   constructor: (text) ->
 
 class TreeViewTransformer
-  constructor: () ->
+  constructor: (@grammar) ->
     @_subscriptions = {}
 
     _subscriptionCount = 0
@@ -77,6 +77,10 @@ class TreeViewTransformer
       elt = new HoleView val.identifier, node.isFilled
       elt.classList.add 'node'
       elt.classList.add 'hole'
+
+      Polymer.Gestures.add elt, 'up', () ->
+        console.log node
+
       return elt
 
     'LiteralNode': (val, node) ->
@@ -87,7 +91,6 @@ class TreeViewTransformer
       return elt
 
     'InputNode': (val, node) ->
-      console.log val.display, val.data
       elt = new InputView val.display, val.data
       elt.classList.add 'node'
       elt.classList.add 'input'
