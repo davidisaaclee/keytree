@@ -8,6 +8,10 @@ ExpressionView = Polymer
     showAddInstanceButton:
       type: String
 
-  factoryImpl: (@identifier, @showAddInstanceButton, @addInstance = ->) ->
+  factoryImpl: (@identifier, @showAddInstanceButton, addInstance = ->) ->
+    @_addInstance = (evt) ->
+      console.log 'here'
+      evt.stopPropagation()
+      do addInstance
 
 module.exports = ExpressionView

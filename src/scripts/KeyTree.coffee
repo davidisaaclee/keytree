@@ -18,13 +18,14 @@ Polymer
     @$.tree.insertionPointSelector = '.children'
 
     @root = new ST.HoleNode 'start', 'START'
-
-    # sb1 = new Subexpression 'subexpr1', 'kleene', [
-    #   new Literal 'optional', '[ '
-    #   new Hole 'center', 'one', 'groupA'
-    #   new Input 'in1', 'kleene', '.*'
-    # ]
-    # x = @root.fill (new Template 'START', sb1)
+    sb1 = new Subexpression 'subexpr1', 'one', [
+      new Literal 'one', '(arith\n\t'
+      new Hole 'arg1', 'one', 'NE'
+      new Literal 'one', '\n\t'
+      new Hole 'arg2', 'one', 'NE'
+      new Literal 'one', ')'
+    ]
+    @root.fill (new Template 'START', sb1)
     # x.instantiate()
     # @root.expression.instances[0].holes['center'].fill (new Template 'groupA', sb1)
 
@@ -32,8 +33,7 @@ Polymer
 
     @transformer = new TreeViewTransformer @grammar
     @transformer.subscribe (transformed, original) =>
-      @$.tree.model = transformed
-      # @$.tree.update()
+      @$.tree.update transformed
     @transformer.watch @root
 
 
@@ -70,7 +70,8 @@ Polymer
             parseHelper = ({type, id, quantifier, value}) ->
               switch type
                 when 'expression'
-                  new Template group, (value.map parseHelper)
+                  expr = new Subexpression key, 'one', (value.map parseHelper)
+                  new Template group, expr
                 when 'literal'
                   new Literal quantifier, value
                 when 'hole'

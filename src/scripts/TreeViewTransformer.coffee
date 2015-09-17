@@ -23,7 +23,7 @@ class TreeViewTransformer
     (Object.keys @viewConstructors).forEach (type) =>
       @transformer.addNodeCase \
         (val, node) => node.constructor.name is type,
-        (val, node) => @viewConstructors[type].call this, val, node
+        (val, node) => () => @viewConstructors[type].call this, val, node
 
 
   ###
@@ -60,7 +60,14 @@ class TreeViewTransformer
         (val.quantifier is 'kleene') or
         (val.quantifier is 'optional') and (node.instances.length is 0)
 
-      elt = new ExpressionView val.identifier, shouldShowAddButton, () -> node.instantiate()
+      elt =
+        new ExpressionView \
+          val.identifier,
+          shouldShowAddButton,
+          () ->
+            console.log 'instantiating'
+            r = node.instantiate()
+            console.log r
       elt.classList.add 'node'
       elt.classList.add 'expression'
       return elt
@@ -77,17 +84,44 @@ class TreeViewTransformer
       elt = new HoleView val.identifier, node.isFilled
       elt.classList.add 'node'
       elt.classList.add 'hole'
+      if node.isFilled
+        elt.classList.add 'filled'
+      else
+        elt.classList.add 'unfilled'
 
-      Polymer.Gestures.add elt, 'up', () =>
+      Polymer.Gestures.add elt, 'up', (evt) =>
+        evt.stopPropagation()
         p = @grammar.productions[node.group]
-        node.fill p[Object.keys(p)[0]]
+        getRandomInt = (min, max) ->
+          Math.floor(Math.random() * (max - min)) + min
+        fillWith = p[Object.keys(p)[getRandomInt(0, Object.keys(p).length)]]
+        node.fill fillWith
 
       return elt
 
     'LiteralNode': (val, node) ->
-      elt = new LiteralView val.text
-      elt.classList.add 'node'
-      elt.classList.add 'literal'
+      lines = val.text.split '\n'
+      elt = document.createElement 'span'
+      lines.forEach (ln, index) ->
+        tabBlocks = ln.split '\t'
+        tabBlocks.forEach (block, index_) ->
+          if block.length > 0
+            e = new LiteralView block
+            elt.appendChild e
+
+          if index_ isnt (tabBlocks.length - 1)
+            tabElt = document.createElement 'span'
+            tabElt.classList.add 'tab'
+            elt.appendChild tabElt
+
+        if index isnt (lines.length - 1)
+          newlineElt = document.createElement 'div'
+          newlineElt.classList.add 'newline'
+          elt.appendChild newlineElt
+
+      # elt = new LiteralView val.text
+      # elt.classList.add 'node'
+      # elt.classList.add 'literal'
 
       return elt
 

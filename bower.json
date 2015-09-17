@@ -21,8 +21,7 @@
     "flower-picker": "davidisaaclee/flower-picker",
     "input-suggest": "davidisaaclee/input-suggest",
     "polymer": "Polymer/polymer#~1.0.4",
-    "polymer-gestures": "Polymer/polymer-gestures#~0.5.6",
-    "tree-view": "git://github.com/davidisaaclee/tree-view.git"
+    "polymer-gestures": "Polymer/polymer-gestures#~0.5.6"
   },
   "devDependencies": {
     "text-tree": "davidisaaclee/text-tree"

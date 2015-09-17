@@ -2,14 +2,19 @@ link(rel='import', href='../../../bower_components/polymer/polymer.html')
 
 dom-module#kt-hole-view
   style.
-    :host {
+    :host.unfilled {
       border: 1px solid #222;
-      border-radius: 10px;
+      border-radius: 4px;
+      background-color: rgba(255, 255, 255, 0.6);
+    }
+
+    :host.filled {
+      border: none;
+      border-radius: 4px;
       background-color: rgba(255, 255, 255, 0.6);
     }
 
   template
     template(is='dom-if', if='{{!isFilled}}')
       span.identifier {{identifier}}
-    template(is='dom-if', if='{{isFilled}}')
-      span.children
+    span.children

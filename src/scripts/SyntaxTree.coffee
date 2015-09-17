@@ -235,6 +235,7 @@ class InstanceNode extends TreeModel
             switch piece.type
               when 'subexpression'
                 @addChild \
+                  "#{piece.identifier}",
                   new ExpressionNode piece
               when 'hole'
                 @addChild \

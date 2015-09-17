@@ -127,7 +127,6 @@
           _this.removeChild(key);
           node.parent = _this;
           node.key = key;
-          node.addEventListener('changed', _this._bubble(key));
           _this.orderedChildrenKeys.push(key);
           index = _this.orderedChildrenKeys.length - 1;
           _this._children[key] = {
@@ -154,6 +153,13 @@
       if (this._children[key] != null) {
         return this._mutate((function(_this) {
           return function() {
+            var oldNode;
+            node.parent = _this;
+            node.key = key;
+            oldNode = _this._children[key].node;
+            oldNode.parent = null;
+            oldNode.key = null;
+            oldNode.removeEventListener('changed', _this._bubble(key));
             return _this._children[key].node = node;
           };
         })(this));
@@ -355,7 +361,7 @@
       if (!this._isMutating) {
         this._isMutating = true;
         r = procedure();
-        this._fireChanged();
+        this._fireChanged(this);
         this._isMutating = false;
         return r;
       } else {
@@ -370,11 +376,14 @@
     @param [TreeModel] node The changed node.
      */
 
-    TreeModel.prototype._fireChanged = function() {
-      return this.dispatchEvent('changed', {
-        node: this,
+    TreeModel.prototype._fireChanged = function(node) {
+      this.dispatchEvent('changed', {
+        node: node,
         path: []
       });
+      if (this.parent != null) {
+        return this.parent._fireChanged(node);
+      }
     };
 
     TreeModel.prototype._bubble = function(childKey) {
@@ -13148,7 +13157,7 @@ InstanceNode = (function(superClass) {
           case 'kleene':
             switch (piece.type) {
               case 'subexpression':
-                return _this.addChild(new ExpressionNode(piece));
+                return _this.addChild("" + piece.identifier, new ExpressionNode(piece));
               case 'hole':
                 return _this.addChild("" + piece.identifier, wrapInExpression(piece, piece.quantifier));
               case 'input':
