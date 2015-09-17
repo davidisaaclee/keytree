@@ -60,8 +60,9 @@ describe 'Filling a syntax tree', () ->
     expect @root.expression.instances
       .toBeDefined()
     expect @root.expression.instances.length
-      .toBe 0
+      .toBe 1
 
+    # does nothing on quantifier 'one'
     @root.expression.instantiate()
 
     expect @root.expression.instances.length
@@ -121,10 +122,10 @@ describe 'Quantifiers', () ->
 
     @one = new MockSubexpr 'subexpr_one', 'one', [
       new MockLiteral 'one', 'david'
-      new MockHole 'abyss_option', 'option', (exp) -> true
+      new MockHole 'abyss_option', 'optional', (exp) -> true
     ]
-    @option = new MockSubexpr 'subexpr_option', 'option', [
-      new MockLiteral 'option', 'david'
+    @option = new MockSubexpr 'subexpr_option', 'optional', [
+      new MockLiteral 'optional', 'david'
       new MockHole 'abyss_kleene', 'kleene', (exp) -> true
     ]
     @kleene = new MockSubexpr 'subexpr_kleene', 'kleene', [
@@ -150,22 +151,23 @@ describe 'Quantifiers', () ->
       .toBeDefined()
 
 
-    inst1 = @root.expression.instantiate()
-    inst1_ = @root.expression.instances[0]
-    expect inst1
-      .toBe inst1_
-    expect inst1
-      .not.toBeNull()
+    # inst1 = @root.expression.instantiate()
+    # inst1_ = @root.expression.instances[0]
+    # expect inst1
+    #   .toBe inst1_
+    # expect inst1
+    #   .not.toBeNull()
+
+    inst1 = @root.expression.instances[0]
 
 
     # Since this is an optional hole, it created a subexpression for itself.
     expect inst1.holes['abyss_option']
       .not.toBeDefined()
 
-    console.log inst1
-
     expect inst1.expressions['abyss_option']
       .toBeDefined()
+
     expect inst1.expressions['abyss_option'].instances.length
       .toBe 0
 
@@ -218,13 +220,80 @@ describe 'Quantifiers', () ->
     expect @root.expression.instances.length
       .toBe 1
 
-  #   expect inst1
-  #     .not.toBe inst2 # o snap!
+  it 'work across instances', () ->
+    kleeneExpr = new MockSubexpr 'kleeneExpr', 'kleene', [
+      new MockLiteral 'one', 'david'
+      new MockLiteral 'kleene', 'kleene_literal'
+      new MockHole 'abyss_option', 'optional', (exp) -> true
+    ]
 
-  #   expect inst1.expressions['abyss_option'].isFilled
-  #     .toBe true
-  #   expect inst2.holes['abyss_option'].isFilled
-  #     .toBe false
+    @root.fill (new MockTemplate kleeneExpr, 'START')
 
+    expect @root.expression.instances.length
+      .toBe 0
 
-  # it 'work for other node kinds', () ->
+    @root.expression.instantiate()
+    @root.expression.instantiate()
+    expect @root.expression.instances[0].literals.length
+      .toBe 1
+    expect @root.expression.instances[1].literals.length
+      .toBe 1
+
+    expect Object.keys(@root.expression.instances[0].expressions).length
+      .toBe 2
+    expect Object.keys(@root.expression.instances[1].expressions).length
+      .toBe 2
+
+    instances = @root.expression.instances
+    kleeneLit_0 = instances[0].expressions[instances[0].orderedChildrenKeys[1]]
+    abyssOpt_0 = instances[0].expressions['abyss_option']
+    kleeneLit_1 = instances[1].expressions[instances[1].orderedChildrenKeys[1]]
+    abyssOpt_1 = instances[1].expressions['abyss_option']
+
+    expect kleeneLit_0
+      .toBeDefined()
+    expect abyssOpt_0
+      .toBeDefined()
+    expect kleeneLit_0.instances.length
+      .toBe 0
+    expect abyssOpt_0.instances.length
+      .toBe 0
+
+    expect kleeneLit_1
+      .toBeDefined()
+    expect abyssOpt_1
+      .toBeDefined()
+    expect kleeneLit_1.instances.length
+      .toBe 0
+    expect abyssOpt_1.instances.length
+      .toBe 0
+
+    kleeneLit_0.instantiate()
+    kleeneLit_0.instantiate()
+    abyssOpt_0.instantiate()
+
+    expect kleeneLit_0.instances.length
+      .toBe 2
+    expect abyssOpt_0.instances.length
+      .toBe 1
+
+    expect kleeneLit_1.instances.length
+      .toBe 0
+    expect abyssOpt_1.instances.length
+      .toBe 0
+
+    @root.expression.instantiate()
+    kleeneLit_2 =
+      @root
+        .expression
+        .instances[2]
+        .expressions[@root.expression.instances[2].orderedChildrenKeys[1]]
+    abyssOpt_2 = @root.expression.instances[2].expressions['abyss_option']
+    expect kleeneLit_2
+      .toBeDefined()
+    expect abyssOpt_2
+      .toBeDefined()
+    expect kleeneLit_2.instances.length
+      .toBe 0
+    expect abyssOpt_2.instances.length
+      .toBe 0

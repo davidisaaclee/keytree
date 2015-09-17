@@ -38,36 +38,32 @@
     function TreeModel(value1) {
       this.value = value1;
       this._bubble = bind(this._bubble, this);
-      this._mutate((function(_this) {
-        return function() {
-          EventTargetMixin(_this);
+      EventTargetMixin(this);
 
-          /*
-          @property [Array] Mapping of keys to this node's children, in the form:
-            node: TreeModel
-            key: String
-           */
-          _this._children = {};
+      /*
+      @property [Array] Mapping of keys to this node's children, in the form:
+        node: TreeModel
+        key: String
+       */
+      this._children = {};
 
-          /*
-          @property [Array<String>] An ordered list of keys for this node's children.
-           */
-          _this.orderedChildrenKeys = [];
+      /*
+      @property [Array<String>] An ordered list of keys for this node's children.
+       */
+      this.orderedChildrenKeys = [];
 
-          /*
-          @property [Array<TreeModel>] An ordered list of this node's children.
-           */
-          return Object.defineProperty(_this, 'childList', {
-            get: function() {
-              return this.orderedChildrenKeys.map((function(_this) {
-                return function(key) {
-                  return _this._children[key].node;
-                };
-              })(this));
-            }
-          });
-        };
-      })(this));
+      /*
+      @property [Array<TreeModel>] An ordered list of this node's children.
+       */
+      Object.defineProperty(this, 'childList', {
+        get: function() {
+          return this.orderedChildrenKeys.map((function(_this) {
+            return function(key) {
+              return _this._children[key].node;
+            };
+          })(this));
+        }
+      });
     }
 
 
@@ -297,6 +293,45 @@
 
 
     /*
+    Calculates the path relative to the first ancestor with a `null` parent.
+     */
+
+    TreeModel.prototype.getPathToRoot = function() {
+      return this.getPathRelativeTo(null);
+    };
+
+
+    /*
+    Calculates the path relative to the specified ancestor node. That is,
+        node1 is (node2.navigate (node1.getPathRelativeTo node2))
+    
+    @param [TreeModel] node An ancestor node which will be the root of the
+      resulting path.
+    @return A path `p` such that `node.navigate p` is this node.
+     */
+
+    TreeModel.prototype.getPathRelativeTo = function(node) {
+      if (this.parent === node) {
+        if (this.key != null) {
+          return [this.key];
+        } else {
+          return [];
+        }
+      } else {
+        if (this.parent != null) {
+          return slice.call(this.parent.getPathRelativeTo(node)).concat([this.key]);
+        } else {
+          throw new Error('No path connecting these two nodes', this, node);
+        }
+      }
+    };
+
+
+    /*
+    Perform a lot of mutations to this node or its descendants, only triggering
+      a single change event.
+    
+    @param [Function<TreeModel, ?>] proc
      */
 
     TreeModel.prototype.batchMutate = function(proc) {
@@ -12945,6 +12980,9 @@ ExpressionNode = (function(superClass) {
     this._instanceIndex = function() {
       return instanceCounter++;
     };
+    if (this.value.quantifier === 'one') {
+      this.instantiate();
+    }
   }
 
 
@@ -12959,7 +12997,7 @@ ExpressionNode = (function(superClass) {
   ExpressionNode.prototype.instantiate = function() {
     var key;
     key = '#' + this._instanceIndex();
-    if ((this.value.quantifier === 'one') || (this.value.quantifier === 'option')) {
+    if ((this.value.quantifier === 'one') || (this.value.quantifier === 'optional')) {
       if (this.instances.length > 0) {
         return null;
       }
@@ -13080,16 +13118,15 @@ InstanceNode = (function(superClass) {
       return function(piece) {
         var wrapInExpression;
         wrapInExpression = function(pc) {
-          var r;
+          var oneified, r;
+          oneified = _.extend(_.clone(pc), {
+            quantifier: 'one'
+          });
           return r = new ExpressionNode({
             type: 'subexpression',
             identifier: pc.identifier,
             quantifier: pc.quantifier,
-            pieces: [
-              _.assign(pc, {
-                quantifier: 'one'
-              })
-            ]
+            pieces: [oneified]
           });
         };
         switch (piece.quantifier) {
@@ -13102,10 +13139,10 @@ InstanceNode = (function(superClass) {
               case 'literal':
                 return _this.addChild("@" + (literalCounter++), new LiteralNode(piece.text));
               case 'input':
-                return _this.addChild("" + piece.identifier, new InputNode(input.identifier, input.acceptCondition));
+                return _this.addChild("" + piece.identifier, new InputNode(piece.identifier, piece.acceptCondition, piece.pattern));
             }
             break;
-          case 'option':
+          case 'optional':
           case 'kleene':
             switch (piece.type) {
               case 'subexpression':
@@ -13251,15 +13288,17 @@ InputNode = (function(superClass) {
   @param [String] identifier The piece's identifier within its template.
   @param [Function<String, Boolean>] acceptCondition Returns `true` if this
     input can accept the specified data.
+  @param [String] display A string to display when not filled.
   @param [String] data The initial data value.
    */
 
-  function InputNode(identifier, acceptCondition, data) {
+  function InputNode(identifier, acceptCondition, display, data) {
     if (data == null) {
       data = null;
     }
     InputNode.__super__.constructor.call(this, {
       identifier: identifier,
+      display: display,
       acceptCondition: acceptCondition,
       data: data
     });
@@ -13405,7 +13444,7 @@ describe('Filling a syntax tree', function() {
     expect(this.root.isFilled).toBe(true);
     expect(this.root.expression.template).toBe(this.sb1.pieces);
     expect(this.root.expression.instances).toBeDefined();
-    expect(this.root.expression.instances.length).toBe(0);
+    expect(this.root.expression.instances.length).toBe(1);
     this.root.expression.instantiate();
     expect(this.root.expression.instances.length).toBe(1);
     expect(this.root.expression.instances[0].template).toBe(this.root.expression.template);
@@ -13440,12 +13479,12 @@ describe('Quantifiers', function() {
       return expr.group === 'START';
     });
     this.one = new MockSubexpr('subexpr_one', 'one', [
-      new MockLiteral('one', 'david'), new MockHole('abyss_option', 'option', function(exp) {
+      new MockLiteral('one', 'david'), new MockHole('abyss_option', 'optional', function(exp) {
         return true;
       })
     ]);
-    this.option = new MockSubexpr('subexpr_option', 'option', [
-      new MockLiteral('option', 'david'), new MockHole('abyss_kleene', 'kleene', function(exp) {
+    this.option = new MockSubexpr('subexpr_option', 'optional', [
+      new MockLiteral('optional', 'david'), new MockHole('abyss_kleene', 'kleene', function(exp) {
         return true;
       })
     ]);
@@ -13456,18 +13495,14 @@ describe('Quantifiers', function() {
     ]);
     return this.flag = new MockSubexpr('subexpr_flag', 'one', [new MockLiteral('flag')]);
   });
-  return it('generally work', function() {
-    var inst1, inst1_, inst2, optionHole, previousFill;
+  it('generally work', function() {
+    var inst1, inst2, optionHole, previousFill;
     this.root.fill(new MockTemplate(this.one, 'START'));
     expect(this.root.expression).toBeDefined();
     expect(this.root.expression).not.toBeNull();
     expect(this.root.expression.instances).toBeDefined();
-    inst1 = this.root.expression.instantiate();
-    inst1_ = this.root.expression.instances[0];
-    expect(inst1).toBe(inst1_);
-    expect(inst1).not.toBeNull();
+    inst1 = this.root.expression.instances[0];
     expect(inst1.holes['abyss_option']).not.toBeDefined();
-    console.log(inst1);
     expect(inst1.expressions['abyss_option']).toBeDefined();
     expect(inst1.expressions['abyss_option'].instances.length).toBe(0);
     optionHole = inst1.expressions['abyss_option'].instantiate();
@@ -13489,6 +13524,49 @@ describe('Quantifiers', function() {
     expect(inst2).toBeNull();
     expect(inst2).not.toBe(this.root.expression.instances[0]);
     return expect(this.root.expression.instances.length).toBe(1);
+  });
+  return it('work across instances', function() {
+    var abyssOpt_0, abyssOpt_1, abyssOpt_2, instances, kleeneExpr, kleeneLit_0, kleeneLit_1, kleeneLit_2;
+    kleeneExpr = new MockSubexpr('kleeneExpr', 'kleene', [
+      new MockLiteral('one', 'david'), new MockLiteral('kleene', 'kleene_literal'), new MockHole('abyss_option', 'optional', function(exp) {
+        return true;
+      })
+    ]);
+    this.root.fill(new MockTemplate(kleeneExpr, 'START'));
+    expect(this.root.expression.instances.length).toBe(0);
+    this.root.expression.instantiate();
+    this.root.expression.instantiate();
+    expect(this.root.expression.instances[0].literals.length).toBe(1);
+    expect(this.root.expression.instances[1].literals.length).toBe(1);
+    expect(Object.keys(this.root.expression.instances[0].expressions).length).toBe(2);
+    expect(Object.keys(this.root.expression.instances[1].expressions).length).toBe(2);
+    instances = this.root.expression.instances;
+    kleeneLit_0 = instances[0].expressions[instances[0].orderedChildrenKeys[1]];
+    abyssOpt_0 = instances[0].expressions['abyss_option'];
+    kleeneLit_1 = instances[1].expressions[instances[1].orderedChildrenKeys[1]];
+    abyssOpt_1 = instances[1].expressions['abyss_option'];
+    expect(kleeneLit_0).toBeDefined();
+    expect(abyssOpt_0).toBeDefined();
+    expect(kleeneLit_0.instances.length).toBe(0);
+    expect(abyssOpt_0.instances.length).toBe(0);
+    expect(kleeneLit_1).toBeDefined();
+    expect(abyssOpt_1).toBeDefined();
+    expect(kleeneLit_1.instances.length).toBe(0);
+    expect(abyssOpt_1.instances.length).toBe(0);
+    kleeneLit_0.instantiate();
+    kleeneLit_0.instantiate();
+    abyssOpt_0.instantiate();
+    expect(kleeneLit_0.instances.length).toBe(2);
+    expect(abyssOpt_0.instances.length).toBe(1);
+    expect(kleeneLit_1.instances.length).toBe(0);
+    expect(abyssOpt_1.instances.length).toBe(0);
+    this.root.expression.instantiate();
+    kleeneLit_2 = this.root.expression.instances[2].expressions[this.root.expression.instances[2].orderedChildrenKeys[1]];
+    abyssOpt_2 = this.root.expression.instances[2].expressions['abyss_option'];
+    expect(kleeneLit_2).toBeDefined();
+    expect(abyssOpt_2).toBeDefined();
+    expect(kleeneLit_2.instances.length).toBe(0);
+    return expect(abyssOpt_2.instances.length).toBe(0);
   });
 });
 

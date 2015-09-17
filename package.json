@@ -9,6 +9,7 @@
     "TreeModel": "git://github.com/davidisaaclee/TreeModel.git"
   },
   "devDependencies": {
+    "TreeTransformer": "git://github.com/davidisaaclee/TreeTransformer.git",
     "browserify": "^10.2.1",
     "browserify-fs": "^1.0.0",
     "coffeeify": "^1.1.0",

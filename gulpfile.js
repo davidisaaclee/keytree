@@ -81,7 +81,7 @@ gulp.task('watch-test', ['build', 'watch-scripts']);
 
 gulp.task('coffee', function () {
   var bundle = browserify(_.extend(options.coffee.options, {
-    entries: './KeyTree.coffee',
+    entries: ['./KeyTree.coffee', './views/HoleView.coffee'],
     outputName: 'app.js',
     transform: [coffeeify]
   })).bundle();
@@ -102,6 +102,7 @@ gulp.task('coffee', function () {
     .pipe(buffer())
     .pipe(gulp.dest('./build'));
 });
+
 
 gulp.task('copy', function () {
   return gulp.src(options.copy.src)

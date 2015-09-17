@@ -100,6 +100,9 @@ class ExpressionNode extends TreeModel
     instanceCounter = 0
     @_instanceIndex = () -> instanceCounter++
 
+    if @value.quantifier is 'one'
+      do @instantiate
+
   ###
   Creates and adds an empty instance to the end of this node's list of
     instances.
@@ -109,7 +112,7 @@ class ExpressionNode extends TreeModel
   ###
   instantiate: () ->
     key = '#' + @_instanceIndex()
-    if (@value.quantifier is 'one') or (@value.quantifier is 'option')
+    if (@value.quantifier is 'one') or (@value.quantifier is 'optional')
       if @instances.length > 0
         return null
 
@@ -203,11 +206,12 @@ class InstanceNode extends TreeModel
     @template
       .forEach (piece) =>
         wrapInExpression = (pc) ->
+          oneified = _.extend (_.clone pc), quantifier: 'one'
           r = new ExpressionNode
             type: 'subexpression'
             identifier: pc.identifier
             quantifier: pc.quantifier
-            pieces: [_.assign pc, quantifier: 'one']
+            pieces: [oneified]
         switch piece.quantifier
           when 'one'
             switch piece.type
@@ -226,15 +230,15 @@ class InstanceNode extends TreeModel
               when 'input'
                 @addChild \
                   "#{piece.identifier}",
-                  new InputNode input.identifier, input.acceptCondition
-          when 'option', 'kleene'
+                  new InputNode piece.identifier, piece.acceptCondition, piece.pattern
+          when 'optional', 'kleene'
             switch piece.type
               when 'subexpression'
                 @addChild \
                   new ExpressionNode piece
               when 'hole'
                 @addChild \
-                  "#{piece.identifier}", # I think this is safe from collision
+                  "#{piece.identifier}",
                   wrapInExpression piece, piece.quantifier
               when 'input'
                 @addChild \
@@ -325,11 +329,13 @@ class InputNode extends TreeModel
   @param [String] identifier The piece's identifier within its template.
   @param [Function<String, Boolean>] acceptCondition Returns `true` if this
     input can accept the specified data.
+  @param [String] display A string to display when not filled.
   @param [String] data The initial data value.
   ###
-  constructor: (identifier, acceptCondition, data = null) ->
+  constructor: (identifier, acceptCondition, display, data = null) ->
     super
       identifier: identifier
+      display: display
       acceptCondition: acceptCondition
       data: data
 

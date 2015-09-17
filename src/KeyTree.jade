@@ -1,9 +1,16 @@
 link(rel='import', href='../bower_components/polymer/polymer.html')
 
-link(rel='import', href='../bower_components/text-tree/build/text-root.html')
+//- link(rel='import', href='../bower_components/text-tree/build/text-root.html')
+link(rel='import', href='../bower_components/tree-view/build/TreeView.html')
 link(rel='import', href='../bower_components/flower-picker/build/flower-picker.html')
 link(rel='import', href='../bower_components/disclose-section/disclose-section.html')
 link(rel='import', href='../bower_components/input-suggest/input-suggest.html')
+
+link(rel='import', href='scripts/views/HoleView.html')
+link(rel='import', href='scripts/views/ExpressionView.html')
+link(rel='import', href='scripts/views/LiteralView.html')
+link(rel='import', href='scripts/views/InputView.html')
+link(rel='import', href='scripts/views/InstanceView.html')
 
 dom-module#key-tree
   link(rel='import', is='custom-style', type='css', href='style.css')
@@ -23,7 +30,8 @@ dom-module#key-tree
                      rows="20"
                      spellcheck=false)
             div: button(id="setGrammar") Set grammar
-        text-root#tree
+        //- text-root#tree
+        tree-view#tree
         div: button#render Render
         div: button#focus-button Focus
 

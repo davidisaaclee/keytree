@@ -16,14 +16,18 @@ class Grammar
     else @productions[groupId]?[productionId]
 
 
-# sequence of pieces, with extra grammatical metadata
+# holds an immutable syntactic template, with extra grammatical metadata
 class Template
-  constructor: (@pieces) ->
+  ###
+  @param [String] group Identifier of this template's grammatical group.
+  @param [Subexpression] expression The actual syntactic template.
+  ###
+  constructor: (@group, @expression) ->
 
-  display: () ->
-    @pieces
-      .map (sym) -> do sym.display
-      .join ''
+  display: () -> @expression.display()
+    # @expression.pieces
+    #   .map (sym) -> do sym.display
+    #   .join ''
 
   templateString: () ->
     do @display
@@ -34,6 +38,8 @@ class Piece
   #     | {identifier: <string>, group: <string>}
   #     | {template: <Template>}
   # quantifier: kleene | optional | one
+
+  ## ?? is this used anywhere?
   @make: (type, data, quantifier) ->
     if not quantifier? then quantifier = 'one'
     switch type
@@ -44,22 +50,60 @@ class Piece
   display: () ->
     console.warn 'display() not overriden for this Piece:', this
 
+
+class Subexpression extends Piece
+  ###
+  @param [String] identifier
+  @param [String] quantifier
+  @param [Array<Piece>] pieces
+  ###
+  constructor: (@identifier, @quantifier, @pieces) ->
+    @type = 'subexpression'
+    if not @quantifier? then @quantifier = 'one'
+
+  display: () -> do @expression.display
+
+
+class Hole extends Piece
+  ###
+  @param [String] identifier
+  @param [String] quantifier
+  @param [String] group
+  ###
+  constructor: (@identifier, @quantifier, @group) ->
+    @type = 'hole'
+    if not @quantifier? then @quantifier = 'one'
+
+  ###
+  @param [Template] template
+  @return `true` if the specified Template can fill this hole.
+  ###
+  acceptCondition: (template) -> template.group is @group
+
+
+  display: () -> "<#{@identifier}:#{@group}>"
+
+
 class Literal extends Piece
-  constructor: (@text, @quantifier) ->
+  ###
+  @param [String] quantifier
+  @param [String] text This piece's immutable syntax text.
+  ###
+  constructor: (@quantifier, @text) ->
     @type = 'literal'
     if not @quantifier? then @quantifier = 'one'
 
   display: () -> @text
 
-class Hole extends Piece
-  constructor: (@identifier, @group, @quantifier) ->
-    @type = 'hole'
-    if not @quantifier? then @quantifier = 'one'
 
-  display: () -> "<#{@identifier}:#{@group}>"
-
+###
+@param [String] identifier
+@param [String] quantifier
+@param [String | RegExp] pattern The regex pattern which data must match to be
+  accepted by this `Input`.
+###
 class Input extends Piece
-  constructor: (@identifier, @pattern, @quantifier, @data = null) ->
+  constructor: (@identifier, @quantifier, @pattern) ->
     @type = 'input'
     if not @quantifier? then @quantifier = 'one'
 
@@ -69,26 +113,14 @@ class Input extends Piece
     else "<#{@identifier}:#{@pattern}>"
 
   ###
-  Creates a new `Input` piece with the supplied data.
+  Returns `true` iff this input can accept the specified string as data.
   ###
-  withData: (data) -> new Input @identifier, @pattern, @quantifier, data
-
-class Subexpression extends Piece
-  ###
-  @param [Template] template This subexpression's template.
-  @param [String] quantifier
-  @param [String] identifier
-  ###
-  constructor: (@template, @quantifier, @identifier) ->
-    @type = 'subexpression'
-    if not @quantifier? then @quantifier = 'one'
-
-  display: () -> do @expression.display
+  acceptCondition: (text) -> (text.match @pattern)?
 
 
 module.exports =
   Grammar: Grammar
-  Expression: Expression
+  Template: Template
   Piece: Piece
   Literal: Literal
   Hole: Hole

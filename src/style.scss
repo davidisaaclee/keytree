@@ -119,6 +119,51 @@ body {
       }
     }
 
+    #tree /deep/ {
+      display: inline-flex;
+      flex-flow: row wrap;
+
+      .node {
+        display: inline-block;
+        padding: 1px;
+        // margin: 8px;
+        // background-color: rgba(255, 255, 255, 0.1);
+      }
+
+      //   $alpha: 0.2;
+      //   .expression {
+      //     background-color: rgba(255, 255, 255, 0.1);
+      //   }
+
+      //   .instance {
+      //     background-color: rgba(100, 100, 100, $alpha);
+      //   }
+
+      //   // .hole {
+      //   //   border: 2px solid #444;
+      //   //   border-radius: 10px;
+      //   //   background-color: rgba(255, 255, 255, 0.6);
+
+      //   //   transition: all 0.1s ease;
+
+      //   //   &:hover {
+      //   //     display: absolute;
+
+      //   //     -webkit-transform: scale(1.1);
+      //   //   }
+      //   // }
+
+      //   .literal {
+      //     background-color: rgba(0, 0, 255, $alpha);
+      //   }
+
+      //   .input {
+      //     background-color: rgba(0, 255, 0, $alpha);
+      //     border-radius: 2px;
+      //   }
+      // }
+    }
+
     // TODO: remove /deep/
     text-root /deep/ {
       text-align: left;
