@@ -117,7 +117,7 @@ class ExpressionNode extends TreeModel
       if @instances.length > 0
         return null
 
-    @addChild key, new InstanceNode @template
+    @addChild key, new InstanceNode @template, key
 
   ###
   Removes the instance at the given numerical index, and returns the removed
@@ -143,8 +143,8 @@ class InstanceNode extends TreeModel
   ###
   @param [Array<Piece>] template
   ###
-  constructor: (template) ->
-    super template: template
+  constructor: (template, instanceIdentifier) ->
+    super {template: template, identifier: instanceIdentifier}
 
     ###
     @property [Map<String, HoleNode>] holes A mapping of hole IDs to their nodes.
@@ -374,7 +374,9 @@ class InputNode extends TreeModel
     Object.defineProperty this, 'display',
       get: () -> @value.display
 
-
+###
+Renders a node into the corresponding source code.
+###
 render = (node) ->
   switch node.constructor.name
     when 'ExpressionNode'
@@ -392,6 +394,85 @@ render = (node) ->
       then node.data
       else "<#{node.display}>"
 
+###
+Flattens a node into a set of tagged pieces, organized into lines.
+
+Line ::=
+  tabstops: [Integer]
+  pieces: [Piece]
+
+Piece ::= TextPiece
+        | HolePiece
+        | (...)
+
+TextPiece ::=
+  type: 'text'
+  tags: Array<String>
+  display: [String]
+
+HolePiece ::=
+  type: 'hole'
+  tags: Array<String>
+  display: [String]
+
+@return [Array<Line>]
+###
+flatten = (node) ->
+  do helper = (node, contextIndents = 0, path = [node.value.identifier], lines = [{tabstops: 0, pieces: []}]) ->
+    lastLine = lines[lines.length - 1]
+
+    switch node.constructor.name
+      when 'ExpressionNode'
+        return node.instances.reduce ((linesAcc, elm) ->
+          helper elm, contextIndents, [path..., node.value.identifier], linesAcc),
+          lines
+
+      when 'InstanceNode'
+        return node.childList.reduce ((linesAcc, elm) ->
+          helper elm, contextIndents, [path..., node.value.identifier], linesAcc),
+          lines
+
+      when 'HoleNode'
+        if node.isFilled
+          helper \
+            node.expression,
+            lines[lines.length - 1].tabstops,
+            [path..., node.value.identifier],
+            lines
+        else
+          lastLine.pieces.push
+            type: 'hole'
+            tags: [path..., node.value.identifier]
+            display: node.value.identifier
+          return lines
+
+      when 'LiteralNode'
+        node.text.split '\n'
+          .map (ln) ->
+            [original, leadingTabs, tail] = /^(\t*)(.*)/.exec ln
+
+            tabstops: leadingTabs.length
+            text: tail
+          .forEach (ln, lnIdx) ->
+            if lnIdx isnt 0
+              lines.push
+                tabstops: contextIndents
+                pieces: []
+
+            lines[lines.length - 1].tabstops += ln.tabstops
+            if ln.text.length > 0
+              lines[lines.length - 1].pieces.push
+                type: 'text'
+                tags: path
+                display: ln.text
+        return lines
+      when 'InputNode'
+        console.warn 'InputNode: TODO'
+        return lines
+        # if node.data?
+        # then node.data
+        # else "<#{node.display}>"
+
 module.exports =
   ExpressionNode: ExpressionNode
   InstanceNode: InstanceNode
@@ -399,3 +480,4 @@ module.exports =
   LiteralNode: LiteralNode
   InputNode: InputNode
   render: render
+  flatten: flatten

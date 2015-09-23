@@ -23,7 +23,9 @@ class TreeViewTransformer
     (Object.keys @viewConstructors).forEach (type) =>
       @transformer.addNodeCase \
         (val, node) => node.constructor.name is type,
-        (val, node) => () => @viewConstructors[type].call this, val, node
+        (val, node) =>
+          instantiate: () => @viewConstructors[type].call this, val, node
+          getChildrenInsertPoint: (instance) -> instance.querySelector '.children'
 
 
   ###
