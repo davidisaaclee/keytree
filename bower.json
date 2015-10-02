@@ -20,8 +20,11 @@
     "disclose-section": "davidisaaclee/disclose-section",
     "flower-picker": "davidisaaclee/flower-picker",
     "input-suggest": "davidisaaclee/input-suggest",
+    "modal-overlay": "git://github.com/davidisaaclee/modal-overlay.git",
+    "peek-picker": "git://github.com/davidisaaclee/peek-picker.git",
     "polymer": "Polymer/polymer#~1.0.4",
-    "polymer-gestures": "Polymer/polymer-gestures#~0.5.6"
+    "polymer-gestures": "Polymer/polymer-gestures#~0.5.6",
+    "text-flow": "git://github.com/davidisaaclee/text-flow.git"
   },
   "devDependencies": {
     "text-tree": "davidisaaclee/text-tree"

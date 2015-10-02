@@ -1,0 +1,26 @@
+link(rel='import', href='../../../bower_components/polymer/polymer.html')
+link(rel='import', href='../../../bower_components/modal-overlay/build/modal-overlay.html')
+link(rel='import', href='TextBlockView.html')
+
+dom-module#kt-hole-filler
+  style.
+    :host {
+      display: -webkit-inline-flex;
+      -webkit-flex-flow: row wrap;
+      -webkit-justify-content: space-around;
+      -webkit-align-content: space-around;
+      -webkit-align-items: center;
+
+      display: inline-flex;
+      flex-flow: row wrap;
+      justify-content: space-around;
+      align-content: space-around;
+      align-items: center;
+
+      height: 100%;
+      width: 100%;
+    }
+  template
+    template(is='dom-repeat', items='{{choices}}')
+      kt-text-block.choice(document-model='{{item}}',
+                           on-track='_onTrack')

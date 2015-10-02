@@ -2,18 +2,30 @@ _ = require 'lodash'
 match = require 'util/match' # class-based pattern matching
 require 'util/property' # convenience wrapper for Object.defineProperty
 
-# The grammar of a single language.
+# The rules of the grammar of a language.
 class Grammar
   constructor: (@productions) ->
 
-  # productions :: { [<group> : { [<production id> : Expression] }] }
+  ###
+  productions ::
+    <group_id :: [String]>:
+      <production_id :: [String]>: [Template]
+  ###
   productions: undefined
 
-  # makeExpression :: String -> String -> {} -> Expression
+  getTemplatesForGroup: (groupId) ->
+    if @productions[groupId]?
+      _.values @productions[groupId]
+    else
+      []
+
+
+  # makeExpression :: String -> String -> Object -> Expression
   makeExpression: (groupId, productionId, data) ->
     if data?
     then @productions[groupId]?[productionId].withData data
     else @productions[groupId]?[productionId]
+
 
 
 # holds an immutable syntactic template, with extra grammatical metadata
@@ -61,7 +73,7 @@ class Subexpression extends Piece
     @type = 'subexpression'
     if not @quantifier? then @quantifier = 'one'
 
-  display: () -> do @expression.display
+  display: () -> @pieces.reduce ((acc, pc) -> acc += pc.display()), ''
 
 
 class Hole extends Piece

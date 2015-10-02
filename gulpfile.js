@@ -92,7 +92,7 @@ gulp.task('watch-test', ['build', 'watch-scripts']);
 
 gulp.task('coffee', function () {
   var bundle = browserify(_.extend(options.coffee.options, {
-    entries: ['./KeyTree.coffee', './views/HoleView.coffee'],
+    entries: ['./views/KeyTree.coffee'],
     outputName: 'app.js',
     transform: [coffeeify]
   })).bundle();

@@ -78,11 +78,12 @@ class ExpressionNode extends TreeModel
 
   @param [Subexpression] expression The expression model.
   ###
-  constructor: (expression) ->
+  constructor: (expression, group) ->
     super
       identifier: expression.identifier
-      template: expression.pieces
+      pieces: expression.pieces
       quantifier: expression.quantifier
+      group: group
 
     ###
     @property [Array<InstanceNode>] instances An ordered list of this
@@ -92,11 +93,17 @@ class ExpressionNode extends TreeModel
       get: () -> @childList
 
     ###
-    @property [Array<Piece>] template The template which all instances of this
-      node should follow.
+    @property [Array<Piece>] pieces The pieces of the template which all
+      instances of this node should follow.
     ###
-    Object.defineProperty this, 'template',
-      get: () -> @value.template
+    Object.defineProperty this, 'pieces',
+      get: () -> @value.pieces
+
+    ###
+    @property [String] group The group of the template, if one exists.
+    ###
+    Object.defineProperty this, 'group',
+      get: () -> @value.group
 
     instanceCounter = 0
     @_instanceIndex = () -> instanceCounter++
@@ -117,7 +124,7 @@ class ExpressionNode extends TreeModel
       if @instances.length > 0
         return null
 
-    @addChild key, new InstanceNode @template, key
+    @addChild key, new InstanceNode @pieces, key
 
   ###
   Removes the instance at the given numerical index, and returns the removed
@@ -133,18 +140,18 @@ class ExpressionNode extends TreeModel
 
 ###
 An `InstanceNode` is an instantiation of an `ExpressionNode`, which offers a
-  buffer in which to fill the `ExpressionNode`'s template.
+  buffer in which to fill the `ExpressionNode`'s pieces.
 An `ExpressionNode` can have multiple instances of itself as children. The
   allowed number of instances correlates with the `ExpressionNode`'s quantifier.
 The `value` field of this node holds a reference to the parent
-  `ExpressionNode`'s template.
+  `ExpressionNode`'s pieces.
 ###
 class InstanceNode extends TreeModel
   ###
-  @param [Array<Piece>] template
+  @param [Array<Piece>] pieces
   ###
-  constructor: (template, instanceIdentifier) ->
-    super {template: template, identifier: instanceIdentifier}
+  constructor: (pieces, instanceIdentifier) ->
+    super {pieces: pieces, identifier: instanceIdentifier}
 
     ###
     @property [Map<String, HoleNode>] holes A mapping of hole IDs to their nodes.
@@ -194,17 +201,17 @@ class InstanceNode extends TreeModel
           elm.constructor.name is 'LiteralNode'
 
     ###
-    @property [Subexpression] template A reference to the parent's template.
+    @property [Subexpression] pieces A reference to the parent's template pieces.
     ###
-    Object.defineProperty this, 'template',
-      get: () -> @value.template
+    Object.defineProperty this, 'pieces',
+      get: () -> @value.pieces
 
     # Populate this node's children with the template's information.
     holeCounter = 0
     expressionCounter = 0
     literalCounter = 0
 
-    @template
+    @pieces
       .forEach (piece) =>
         wrapInExpression = (pc) ->
           r = new ExpressionNode
@@ -315,6 +322,23 @@ class HoleNode extends TreeModel
     else null
 
 
+  ###
+  @param [ExpressionNode] node The node with which to fill this hole.
+  @return [ExpressionNode] The same expression node supplied and used to fill
+    this hole, or `null` if unsuccessful fill.
+  ###
+  fillWithNode: (node) ->
+    # TODO: how to deal with acceptCondition without including Grammar.Template here?
+    outerTemplate =
+      group: node.group
+    if @acceptCondition outerTemplate
+      @setChild \
+        'expression',
+        node
+    else
+      null
+
+
 ###
 Represents a block of immutable text.
 
@@ -407,35 +431,81 @@ Piece ::= TextPiece
 
 TextPiece ::=
   type: 'text'
-  tags: Array<String>
+  tags: [Array<String>]
+  node: [LiteralNode]
+  holeContext: [HoleNode]
   display: [String]
 
 HolePiece ::=
   type: 'hole'
-  tags: Array<String>
+  tags: [Array<String>]
+  node: [HoleNode]
+  group: [String]
   display: [String]
+
+InputPiece ::=
+  type: 'input'
+  tags: [Array<String>]
+  node: [InputNode]
+  pattern: [String]
+  display: [String]
+
+ActionPiece ::=
+  type: 'action'
+  action: [Function]
 
 @return [Array<Line>]
 ###
 flatten = (node) ->
-  do helper = (node, contextIndents = 0, path = [node.value.identifier], lines = [{tabstops: 0, pieces: []}]) ->
+  initialContext = node
+  while initialContext? and initialContext.constructor.name isnt 'HoleNode'
+    initialContext = initialContext.parent
+
+  do helper = (node, \
+               holeContext = initialContext, \
+               contextIndents = 0, \
+               path = [node.value.identifier], \
+               lines = [{tabstops: 0, pieces: []}]) ->
     lastLine = lines[lines.length - 1]
 
     switch node.constructor.name
       when 'ExpressionNode'
-        return node.instances.reduce ((linesAcc, elm) ->
-          helper elm, contextIndents, [path..., node.value.identifier], linesAcc),
+        lines = node.instances.reduce ((linesAcc, elm) ->
+          helper \
+            elm,
+            holeContext,
+            contextIndents,
+            [path..., node.value.identifier],
+            linesAcc),
           lines
+
+        needsInstantiateButton = node.value.quantifier is 'kleene'
+        needsInstantiateButton ||= (node.value.quantifier is 'optional') and
+                                   (node.instances.length is 0)
+        if needsInstantiateButton
+          lines[lines.length - 1].pieces.push
+            type: 'action'
+            action: () ->
+              node.instantiate()
+            tags: path
+
+        return lines
 
       when 'InstanceNode'
         return node.childList.reduce ((linesAcc, elm) ->
-          helper elm, contextIndents, [path..., node.value.identifier], linesAcc),
+          helper \
+            elm,
+            holeContext,
+            contextIndents,
+            [path..., node.value.identifier],
+            linesAcc),
           lines
 
       when 'HoleNode'
         if node.isFilled
           helper \
             node.expression,
+            node,
             lines[lines.length - 1].tabstops,
             [path..., node.value.identifier],
             lines
@@ -443,6 +513,8 @@ flatten = (node) ->
           lastLine.pieces.push
             type: 'hole'
             tags: [path..., node.value.identifier]
+            node: node
+            group: node.value.group
             display: node.value.identifier
           return lines
 
@@ -464,14 +536,19 @@ flatten = (node) ->
               lines[lines.length - 1].pieces.push
                 type: 'text'
                 tags: path
+                holeContext: holeContext
+                node: node
                 display: ln.text
         return lines
+
       when 'InputNode'
-        console.warn 'InputNode: TODO'
+        lines[lines.length - 1].pieces.push
+          type: 'input'
+          tags: [path..., node.value.identifier]
+          node: node
+          pattern: node.value.pattern
+          data: node.value.data
         return lines
-        # if node.data?
-        # then node.data
-        # else "<#{node.display}>"
 
 module.exports =
   ExpressionNode: ExpressionNode

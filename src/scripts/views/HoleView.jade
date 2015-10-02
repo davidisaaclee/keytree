@@ -1,20 +1,43 @@
 link(rel='import', href='../../../bower_components/polymer/polymer.html')
+link(rel='import', href='../../../bower_components/modal-overlay/build/modal-overlay.html')
+link(rel='import', href='TextBlockView.html')
+link(rel='import', href='HoleFillerView.html')
 
 dom-module#kt-hole-view
   style.
-    :host.unfilled {
-      border: 1px solid #222;
-      border-radius: 4px;
-      background-color: rgba(255, 255, 255, 0.6);
+    :host {
+      box-sizing: border-box;
+
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      user-select: none;
+
+      display: -webkit-inline-flex;
+      -webkit-align-items: center;
+      -webkit-align-content: center;
+
+      display: inline-flex;
+      align-items: center;
+      align-content: center;
     }
 
-    :host.filled {
-      border: none;
-      border-radius: 4px;
-      background-color: rgba(255, 255, 255, 0.6);
+    #identifier {
+      border-radius: 1em;
+      padding: 1px 2px;
+
+      background-color: #F7F7F7;
+      border: 0.2em solid #979797;
+
+      font-family: 'Input', sans-serif;
+      font-size: 0.6em;
+      text-transform: uppercase;
+
+      cursor: pointer;
+    }
+
+    modal-overlay {
+      background-color: rgba(100, 100, 100, 0.5);
     }
 
   template
-    template(is='dom-if', if='{{!isFilled}}')
-      span.identifier {{identifier}}
-    span.children
+    span#identifier(on-down='_onDown') {{identifier}}

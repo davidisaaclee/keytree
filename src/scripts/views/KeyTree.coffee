@@ -1,43 +1,42 @@
 _ = require 'lodash'
 ST = require 'SyntaxTree'
-TreeViewTransformer = require 'TreeViewTransformer'
+# TreeViewTransformer = require 'TreeViewTransformer'
 {Grammar, Template, Piece, Literal, Hole, Input, Subexpression} = require 'Grammar'
 match = require 'util/match'
 renameProperty = require 'util/renameProperty'
 ModeManager = require 'util/ModeManager'
 InputUtil = require 'util/Input'
 parseGrammar = (require 'parsers/grammar-new').parse
+# DocumentViewController = require 'DocumentViewController'
+require 'views/TextBlockView'
 
 Polymer
   is: 'key-tree'
 
   ready: () ->
-    @_setup()
+    ###
+    @property state [Object] Holds all state for the application.
+    ###
+    @state =
+      document:
+        treeModel: null
+        grammar: null
 
-  _setup: () ->
-    @$.tree.insertionPointSelector = '.children'
+    @_setupNewDocument @state
 
-    @root = new ST.HoleNode 'start', 'START'
-    sb1 = new Subexpression 'subexpr1', 'one', [
-      new Literal 'one', '(arith\n\t'
-      new Hole 'arg1', 'one', 'NE'
-      new Literal 'one', '\n\t'
-      new Hole 'arg2', 'one', 'NE'
-      new Literal 'one', ')'
+
+  _setupNewDocument: (state) ->
+    state.document.grammar = @loadGrammar state
+    startExpr = new Subexpression 'start', 'one', [
+      new Hole 'start', 'one', 'START'
     ]
-    @root.fill (new Template 'START', sb1)
-    # x.instantiate()
-    # @root.expression.instances[0].holes['center'].fill (new Template 'groupA', sb1)
+    state.document.treeModel =
+      startNode = new ST.ExpressionNode startExpr, 'START'
 
-    @loadGrammar()
-
-    @transformer = new TreeViewTransformer @grammar
-    @transformer.subscribe (transformed, original) =>
-      @$.tree.update transformed
-    @transformer.watch @root
+    @$.root.setModel state.document
 
 
-  loadGrammar: () ->
+  loadGrammar: (state) ->
     litRules =
       'START':
         'start': '<start:NE>'
@@ -46,7 +45,7 @@ Polymer
         'arith-op': '"(arith " <rator:A> "\n\t" <randl:NE> "\n\t" <randr:NE> ")"'
         'list': '"(list " <element:NE>* ")"'
         'list-lit': '"[" (<hd:NE> (", " <tl:NE>)*)? "]"'
-        'variable': '<identifier:\\any>'
+        # 'variable': '<identifier:\\any>'
       'N':
         # 'digits': '"digit placeholder"'
         'digits': '<digits:\\numbers>'
@@ -81,9 +80,12 @@ Polymer
                 when 'subexpression'
                   new Subexpression id, quantifier, (value.map parseHelper)
             parseHelper parseGrammar vi
-      @grammar = new Grammar mock.rules
+      state.document.grammar = new Grammar mock.rules
 
     do loadRulesFromTextarea
+    console.log state.document.grammar
     Polymer.Gestures.add setGrammar, 'up', loadRulesFromTextarea
     Polymer.Gestures.add @$.render, 'up', (evt) =>
-      console.log ST.flatten @root
+      console.log ST.render state.document.treeModel
+
+    return state.document.grammar

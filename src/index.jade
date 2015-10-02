@@ -4,15 +4,34 @@ html(lang="en")
     title keytree
     meta(charset='UTF-8')
     meta(name="viewport",
-         content="initial-scale=0.7, \
-                  user-scalable=no")
+         content="initial-scale=1, \
+                  width=device-width, \
+                  user-scalable=yes")
     script(src='../bower_components/webcomponentsjs/webcomponents-lite.js')
     link(rel='import', href='../bower_components/polymer/polymer.html')
-    link(rel='import', href='KeyTree.html')
+    link(rel='import', href='scripts/views/KeyTree.html')
 
     style.
-      body {
-        background-color: rgba(180, 90, 90, 1);
+      @font-face {
+        font-family: Input;
+        src: url(assets/fonts/InputSansCompressed-Regular.ttf);
       }
+
+      @font-face {
+        font-family: Input;
+        src: url(assets/fonts/InputSansCompressed-Bold.ttf);
+        font-weight: bold;
+      }
+
+      @font-face {
+        font-family: Input;
+        src: url(assets/fonts/InputSansCompressed-Thin.ttf);
+        font-weight: 200;
+      }
+
+      body {
+        background-color: #FFF4E8;
+      }
+
   body(unresolved)
     key-tree

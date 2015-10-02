@@ -1,0 +1,18 @@
+link(rel='import', href='../../../bower_components/polymer/polymer.html')
+link(rel='import', href='../../../bower_components/text-flow/build/text-flow.html')
+
+dom-module#kt-text-block
+  style.
+    text-flow-line, text-flow-piece {
+      display: -webkit-flex;
+      display: flex;
+
+      -webkit-align-content: center;
+      align-content: center;
+
+      -webkit-align-items: center;
+      align-items: center;
+    }
+
+  template
+    text-flow#root

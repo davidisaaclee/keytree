@@ -2,19 +2,15 @@ InputView = Polymer
   is: 'kt-input-view'
 
   properties:
-    display:
+    pattern:
       type: String
       value: ''
-      observe: '_displayChanged'
     data:
       type: String
       value: null
 
-  factoryImpl: (@display, @data) ->
+  factoryImpl: (@pattern, @data) ->
 
   _isFilled: (data) -> return data?
-
-  _displayChanged: () ->
-    console.log 'adsfsd', this
 
 module.exports = InputView

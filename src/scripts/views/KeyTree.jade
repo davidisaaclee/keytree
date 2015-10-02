@@ -1,0 +1,41 @@
+link(rel='import', href='../../../bower_components/polymer/polymer.html')
+
+//- link(rel='import', href='../bower_components/text-tree/build/text-root.html')
+link(rel='import', href='../../../bower_components/tree-view/build/TreeView.html')
+link(rel='import', href='../../../bower_components/flower-picker/build/flower-picker.html')
+link(rel='import', href='../../../bower_components/disclose-section/disclose-section.html')
+link(rel='import', href='../../../bower_components/input-suggest/input-suggest.html')
+link(rel='import', href='../../../bower_components/text-flow/build/text-flow.html')
+
+link(rel='import', href='TextBlockView.html')
+link(rel='import', href='TextCellView.html')
+link(rel='import', href='InputView.html')
+link(rel='import', href='HoleView.html')
+
+dom-module#key-tree
+  link(rel='import', is='custom-style', type='css', href='../../style.css')
+  style.
+    #edit-grammar-disclose {
+      color: #bbb;
+    }
+  template
+    #container
+      //- #overlay
+      //-   flower-picker#picker(radius="100")
+      //-   input-suggest#user-input-box(autoreset, displayOnEmpty)
+      #app
+        disclose-section#grammar-edit
+          span#edit-grammar-disclose(trigger) edit grammar...
+          div(content)
+            p Learn how to write your own grammar at the <a href="https://github.com/davidisaaclee/keytree#grammars" target="_blank">GitHub repo.</a>
+            textarea(id="grammarText"
+                     name="grammarText"
+                     cols="80"
+                     rows="20"
+                     spellcheck=false)
+            div: button(id="setGrammar") Set grammar
+        div#document
+          kt-text-block#root
+        div: button#render Render
+
+script(src='../../app.js')

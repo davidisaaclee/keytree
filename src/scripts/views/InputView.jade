@@ -3,14 +3,16 @@ link(rel='import', href='../../../bower_components/polymer/polymer.html')
 dom-module#kt-input-view
   style.
     :host {
-      border: 1px solid #333;
-      border-radius: 2px;
+      //- border: 1px solid #333;
+      //- border-radius: 2px;
 
-      background-color: #fff;
+      //- background-color: #fff;
+
+      box-sizing: border-box;
     }
 
   template
     template(is='dom-if', if='{{_isFilled(data)}}')
       span.data {{data}}
     template(is='dom-if', if='{{!_isFilled(data)}}')
-      span.pattern {{display}}
+      span.pattern {{pattern}}
